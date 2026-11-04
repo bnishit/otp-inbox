@@ -1,0 +1,14 @@
+.local/
+.env
+.env.*
+!.env.example
+*.shortcut
+*.pem
+*.key
+__pycache__/
+.venv/
+node_modules/
+.DS_Store
+.vercel/
+.wrangler/
+dist/

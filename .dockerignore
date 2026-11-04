@@ -1,0 +1,7 @@
+*
+!server.ts
+!mcp.ts
+!tools.json
+!email/
+!email/gmail-push.ts
+!email/mail.js
