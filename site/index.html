@@ -68,7 +68,7 @@
             <div class="actions">
               <a
                 class="button"
-                href="https://github.com/bnishit/otp-inbox#start-here"
+                href="#setup"
                 >Make it yours <span>↗</span></a
               ><a class="quiet" href="#how">Take a look ↓</a>
             </div>
@@ -150,8 +150,8 @@
             <p class="eyebrow">FORK IT. MAKE IT YOURS.</p>
             <h2>Not another service.<br /><em>Your own little tool.</em></h2>
             <p>
-              Start on your machine. Move to an HTTPS host. Add only the sources
-              and agents you trust.
+              Copy the setup prompt into Codex or Claude Code. Your agent handles
+              the computer-side setup; you handle phone taps and required consent.
             </p>
             <a
               class="quiet"
@@ -160,9 +160,74 @@
             >
           </div>
           <div class="setup-right">
+            <div class="agent-setup">
+              <div class="agent-setup-head">
+                <span class="eyebrow">LET YOUR AGENT DO THE SETUP</span>
+                <button class="button" id="copy-setup" type="button">Copy setup prompt <span aria-hidden="true">↗</span></button>
+              </div>
+              <p>Paste into Codex or Claude Code. The complete README prompt, ready to go.</p>
+              <p id="copy-status" role="status" aria-live="polite"></p>
+              <details id="prompt-details">
+                <summary>Read the full prompt</summary>
+                <!-- setup-prompt:start --><textarea id="setup-prompt" aria-label="Full agent setup prompt" readonly spellcheck="false">Set up OTP Inbox end to end for me from https://github.com/bnishit/otp-inbox.
+Do the work, not just explain the steps. I will handle the phone taps.
+
+1. Clone the repo, or reuse my existing checkout. Read README.md, SECURITY.md,
+   docs/deploy.md and the relevant capture/agent guides before making changes.
+   Reuse existing deployment/config when present; preserve keys and unrelated
+   settings. Never use the maintainer&#x27;s inbox, accounts or credentials.
+
+2. Ask in one short batch only what you cannot discover: iPhone or Android,
+   which Gmail accounts I want connected, which agents I use, and hosting
+   preference/budget. Explain that connected reader agents can retrieve any
+   captured code in this deployment. Confirm the accounts/access I want before
+   granting it. Do not buy services or accept new legal terms on my behalf.
+
+3. Check prerequisites, generate private config with scripts/setup.py, run the
+   tests and synthetic smoke check, then deploy one always-on replica behind
+   HTTPS using my hosting account. Update the generated config to the public
+   URL without rotating keys. Keep all secrets in ignored private files and
+   runtime settings; never print them, paste them in chat or commit them.
+
+4. For iPhone, generate and sign/import my private Shortcut on the Mac when
+   available. Then give me the exact remaining Message-automation phone taps,
+   one screen at a time. Mac sync does not create the iPhone trigger. For
+   Android, prepare the Tasker payload and guide me through the profile,
+   permissions and HTTP action. Follow the documented capture limits; don&#x27;t
+   claim an unconditional all-SMS trigger or a tested Android flow without proof.
+
+5. For every Gmail account I select, install its account-bound minute collector
+   using available browser/tools. Then set up my own Google Cloud project,
+   OAuth consent and authenticated Pub/Sub push as described in the push guide.
+   Keep polling active as backup and watch-renewal driver. Let me complete
+   required sign-in/consent screens. Use read-only Gmail access only. Explain
+   Testing-token expiry; don&#x27;t call Production publishing Google verification.
+
+6. Register the MCP adapter in my selected installed clients, including Codex
+   and Claude Code when requested, with separate reader keys. Add the standing
+   rule from examples/agent-instructions.md to the right existing instruction
+   files, preserving other rules. For Dot, follow the owner-private Sites route
+   if available. For Instinct/Muse, follow their documented secure integration
+   recipe; don&#x27;t invent native support or remove authentication to connect.
+
+7. Verify capture -&gt; metadata lookup -&gt; matching claim without printing codes.
+   Check each mailbox&#x27;s real health and distinguish push capture from polling.
+   Use synthetic tests first; don&#x27;t send emails/SMS or start third-party logins
+   without my instruction. Guide me through a real phone/locked-screen test.
+   For an authorized login, match service, request time and exact account/channel
+   before claim; never blindly take the newest code. Save the standing retrieval
+   rule, never codes. OTP access does not authorize payments, security changes
+   or forwarding codes to people. Respect each client&#x27;s approval rules.
+
+Keep going through all work you can do. Ask me only for missing decisions,
+phone taps or required access/consent. If a tool or account blocks a step,
+finish independent work, then give me the exact remaining action. End with
+what is working, what was actually tested, what remains, and how to revoke it.</textarea><!-- setup-prompt:end -->
+              </details>
+            </div>
             <div class="terminal">
               <div class="terminal-head">
-                <span>QUICK START</span><span>macOS / Linux</span>
+                <span>OR START MANUALLY</span><span>macOS / Linux</span>
               </div>
               <pre><code>git clone https://github.com/bnishit/otp-inbox.git
 cd otp-inbox

@@ -19,3 +19,21 @@ picker.addEventListener("submit", (event) => {
       source.value +
       ".md";
 });
+
+const copySetup = document.querySelector("#copy-setup");
+const setupPrompt = document.querySelector("#setup-prompt");
+const copyStatus = document.querySelector("#copy-status");
+copySetup.addEventListener("click", async () => {
+  copySetup.disabled = true;
+  try {
+    await navigator.clipboard.writeText(setupPrompt.value);
+    copyStatus.textContent = "Copied. Paste into Codex or Claude Code to start.";
+  } catch {
+    document.querySelector("#prompt-details").open = true;
+    setupPrompt.focus();
+    setupPrompt.select();
+    copyStatus.textContent = "Clipboard access is blocked. The full prompt is selected; copy it manually.";
+  } finally {
+    copySetup.disabled = false;
+  }
+});

@@ -802,6 +802,38 @@ footer > p {
     line-height: 1.8;
   }
 }
+.agent-setup {
+  border: 1px solid #657647;
+  padding: 24px;
+  margin-bottom: 24px;
+  background: #1a1f13;
+}
+.agent-setup-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  justify-content: space-between;
+}
+.setup .agent-setup .eyebrow { margin: 0; color: var(--accent); font-size: 8px; }
+.agent-setup .button { border: 0; cursor: pointer; gap: 18px; font: 600 11px system-ui; }
+.agent-setup .button:disabled { opacity: .6; cursor: wait; }
+.agent-setup p { font-size: 12px; line-height: 1.7; color: var(--muted); }
+.agent-setup #copy-status { color: var(--accent); font-size: 11px; }
+.agent-setup summary { cursor: pointer; font-size: 11px; color: #c5cfb5; }
+#setup-prompt {
+  display: block;
+  width: 100%;
+  height: 260px;
+  margin-top: 16px;
+  padding: 14px;
+  resize: vertical;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid #4a563c;
+  font: 11px/1.7 ui-monospace, monospace;
+}
+@media (max-width: 720px) { .agent-setup { padding: 19px; } }
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
