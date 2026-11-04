@@ -24,6 +24,69 @@ No hosted account. No AI API key. No permanent code database. You run the server
 
 An agent reaches a login screen, then stops to ask you to open your phone and paste a code. This tool gives it a narrow, reusable retrieval path. Codes arrive even when no agent is waiting. Access to a code still does not authorize payments, security changes or forwarding it to another person.
 
+## Let Codex or Claude Code set it up
+
+Copy this whole prompt into Codex or Claude Code on your computer. The agent should do the computer-side work and guide you through the phone taps. Google sign-in, consent, hosting access or paid services may still need your action; the prompt does not bypass those steps.
+
+```text
+Set up OTP Inbox end to end for me from https://github.com/bnishit/otp-inbox.
+Do the work, not just explain the steps. I will handle the phone taps.
+
+1. Clone the repo, or reuse my existing checkout. Read README.md, SECURITY.md,
+   docs/deploy.md and the relevant capture/agent guides before making changes.
+   Reuse existing deployment/config when present; preserve keys and unrelated
+   settings. Never use the maintainer's inbox, accounts or credentials.
+
+2. Ask in one short batch only what you cannot discover: iPhone or Android,
+   which Gmail accounts I want connected, which agents I use, and hosting
+   preference/budget. Explain that connected reader agents can retrieve any
+   captured code in this deployment. Confirm the accounts/access I want before
+   granting it. Do not buy services or accept new legal terms on my behalf.
+
+3. Check prerequisites, generate private config with scripts/setup.py, run the
+   tests and synthetic smoke check, then deploy one always-on replica behind
+   HTTPS using my hosting account. Update the generated config to the public
+   URL without rotating keys. Keep all secrets in ignored private files and
+   runtime settings; never print them, paste them in chat or commit them.
+
+4. For iPhone, generate and sign/import my private Shortcut on the Mac when
+   available. Then give me the exact remaining Message-automation phone taps,
+   one screen at a time. Mac sync does not create the iPhone trigger. For
+   Android, prepare the Tasker payload and guide me through the profile,
+   permissions and HTTP action. Follow the documented capture limits; don't
+   claim an unconditional all-SMS trigger or a tested Android flow without proof.
+
+5. For every Gmail account I select, install its account-bound minute collector
+   using available browser/tools. Then set up my own Google Cloud project,
+   OAuth consent and authenticated Pub/Sub push as described in the push guide.
+   Keep polling active as backup and watch-renewal driver. Let me complete
+   required sign-in/consent screens. Use read-only Gmail access only. Explain
+   Testing-token expiry; don't call Production publishing Google verification.
+
+6. Register the MCP adapter in my selected installed clients, including Codex
+   and Claude Code when requested, with separate reader keys. Add the standing
+   rule from examples/agent-instructions.md to the right existing instruction
+   files, preserving other rules. For Dot, follow the owner-private Sites route
+   if available. For Instinct/Muse, follow their documented secure integration
+   recipe; don't invent native support or remove authentication to connect.
+
+7. Verify capture -> metadata lookup -> matching claim without printing codes.
+   Check each mailbox's real health and distinguish push capture from polling.
+   Use synthetic tests first; don't send emails/SMS or start third-party logins
+   without my instruction. Guide me through a real phone/locked-screen test.
+   For an authorized login, match service, request time and exact account/channel
+   before claim; never blindly take the newest code. Save the standing retrieval
+   rule, never codes. OTP access does not authorize payments, security changes
+   or forwarding codes to people. Respect each client's approval rules.
+
+Keep going through all work you can do. Ask me only for missing decisions,
+phone taps or required access/consent. If a tool or account blocks a step,
+finish independent work, then give me the exact remaining action. End with
+what is working, what was actually tested, what remains, and how to revoke it.
+```
+
+Prefer manual setup? Start below, then choose your capture and agent guides.
+
 ## Start here
 
 Requires Bun, Python 3.10+ and Git.
