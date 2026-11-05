@@ -1,10 +1,10 @@
 # A bridge for one useful next action
 
-The starting user is at a desktop login while the proof arrives on their phone or email. The product should bring the right next action to that page: fill a code, copy it, or open a verified sign-in link. The current implementation covers that first slice. It does not expand inbox permissions.
+The starting user is at a desktop login while the proof arrives on their phone or email. The product should bring the right next action to that page: fill a code, copy it, or open a verified sign-in link. The current source build covers automatic arrival discovery and explicit next actions. It does not expand inbox permissions.
 
 ## Product choice
 
-Use the existing short-lived inbox and claim path for all clients, including the Chrome helper. This keeps one expiry rule and one owner for each secret. The browser adds a deliberate page choice, a two-minute watch, safe metadata, one action and a clear stop. It does not monitor every page or act on every new message.
+Use the existing short-lived inbox and claim path for all clients, including the Chrome helper. This keeps one expiry rule and one owner for each secret. The browser shows captured login items automatically, with a badge and optional alerts. A deliberate page choice is needed only for filling. It does not inspect every page or act on a message without a click.
 
 The main trap is treating every message as an instruction. A message may contain a link to a transaction, an amount, a phishing request, a password reset or a code that approves a payment. The same action button must not mean both “sign me in” and “approve this charge.” Sender names, page text and message content cannot grant permission.
 

@@ -1,15 +1,16 @@
 {
   "manifest_version": 3,
   "name": "OTP Bridge \u2014 Login helper",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "minimum_chrome_version": "124",
-  "description": "Bring a requested phone or email login to the page you are using. Fill a code or open an approved sign-in link with one click.",
+  "description": "New phone codes and email sign-in links appear automatically. Copy, fill or open only when you choose.",
   "permissions": [
     "activeTab",
     "scripting",
     "storage",
     "sidePanel",
-    "clipboardWrite"
+    "clipboardWrite",
+    "alarms"
   ],
   "optional_host_permissions": [
     "https://*/*",
@@ -21,7 +22,7 @@
     "type": "module"
   },
   "action": {
-    "default_title": "Watch this login",
+    "default_title": "Open OTP inbox",
     "default_popup": "launcher.html"
   },
   "side_panel": {
@@ -42,7 +43,7 @@
         "default": "Ctrl+Shift+Y",
         "mac": "Command+Shift+Y"
       },
-      "description": "Watch this login"
+      "description": "Open OTP inbox"
     }
   }
 }
