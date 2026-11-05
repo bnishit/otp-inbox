@@ -1,6 +1,7 @@
-import {bridgeOrigin,safeLink,fillLoginCode,UserMessage} from './core.js';
+import {bridgeOrigin,safeLink,fillLoginCode,UserMessage,connectionStore} from './core.js';
 import {inboxItems,isAmbiguous} from './inbox.js';
 const $=id=>document.getElementById(id);
+const store=await connectionStore();
 let connection=null,target=null,since=0,busy=false;
 const say=text=>{$('status').textContent=text;};
 const element=(tag,text,className)=>{const el=document.createElement(tag);el.textContent=text;if(className)el.className=className;return el;};
@@ -61,7 +62,7 @@ async function renderInbox() {
     else {if(target?.origin)add('Fill code on '+new URL(target.origin).hostname,'fill');add('Copy code','copy',!!target?.origin);}
     $('results').append(card);
   }
-  $('inbox-state').textContent=inbox?.status==='error'?'Cannot reach the bridge. Retrying automatically.':inbox?.sourceIssues?.length?'An inbox source needs attention. Other arrivals still appear here.':items.length?items.length+' recent login item'+(items.length===1?'':'s')+'. Nothing happens until you choose an action.':'Connected. New arrivals appear automatically; no watch needed.';
+  $('inbox-state').textContent=inbox?.status==='reauth'?'Your saved connection was refused. Disconnect and reconnect with an active browser key.':inbox?.status==='error'?'Cannot reach the bridge. Retrying automatically.':inbox?.sourceIssues?.length?'An inbox source needs attention. Other arrivals still appear here.':items.length?items.length+' recent login item'+(items.length===1?'':'s')+'. Nothing happens until you choose an action.':'Connected. New arrivals appear automatically; no watch needed.';
 }
 async function refresh() {
   if(!connection)return;
@@ -75,7 +76,7 @@ $('connect-form').onsubmit=async event=>{
     if(!await chrome.permissions.request({origins:[origin+'/*']}))throw new UserMessage('Bridge-host access was not granted.');
     connection={origin,token};
     try{await request('/v1/recent',{max_age_seconds:1,service:'bridge-connection-check'});}catch(error){connection=null;throw error;}
-    await chrome.storage.session.set({connection});$('token').value='';showConnection();say('Connected. New arrivals will appear automatically.');await refresh();
+    await store.set({connection});$('token').value='';showConnection();say('Connected. This Chrome profile will stay connected after restart.');await refresh();
   }catch(error){say(error instanceof UserMessage?error.message:'Could not connect. Check the bridge address and browser key.');}
 };
 $('refresh').onclick=()=>refresh();
@@ -83,9 +84,9 @@ $('notify').onclick=async()=>{try{say(await chrome.permissions.request({permissi
 $('service').oninput=()=>renderInbox();$('account').oninput=()=>renderInbox();
 $('new-only').onclick=()=>{since=Date.now();say('Showing only new arrivals. Request a fresh login now.');renderInbox();};
 $('all-recent').onclick=()=>{since=0;renderInbox();};
-$('disconnect').onclick=async()=>{const origin=connection?.origin;connection=null;$('results').replaceChildren();await chrome.storage.session.remove('connection');if(origin)await chrome.permissions.remove({origins:[origin+'/*']});showConnection();say('Disconnected. Automatic checks have stopped.');};
+$('disconnect').onclick=async()=>{const origin=connection?.origin;connection=null;$('results').replaceChildren();await store.remove(['connection','arrivalState']);if(origin)await chrome.permissions.remove({origins:[origin+'/*']});showConnection();say('Disconnected. Automatic checks have stopped.');};
 function updateTarget(next){target=next;$('target').textContent=next?.origin?new URL(next.origin).hostname:'Open on a login page to fill, or copy a code from here';if(connection)renderInbox();}
 $('use-page').onclick=async()=>{try{const [tab]=await chrome.tabs.query({active:true,currentWindow:true});const result=await chrome.scripting.executeScript({target:{tabId:tab.id},func:()=>location.origin});const origin=bridgeOrigin(result[0]?.result);const next={tabId:tab.id,origin};updateTarget(next);await chrome.storage.session.set({target:next});}catch{say('Open the bridge icon on the login page to grant access. Copy and Open still work here.');}};
-const saved=await chrome.storage.session.get(['connection','target']);connection=saved.connection||null;showConnection();updateTarget(saved.target);if(connection)await refresh();
+const saved=await chrome.storage.session.get('target');const remembered=await store.get('connection');connection=remembered.connection||null;showConnection();updateTarget(saved.target);if(connection)await refresh();
 chrome.storage.onChanged.addListener((changes,area)=>{if(area!=='session')return;if(changes.target)updateTarget(changes.target.newValue);if(changes.inbox&&connection)renderInbox();});
 setInterval(()=>{if(connection)refresh();},5000);

@@ -1,4 +1,8 @@
 export class UserMessage extends Error {}
+export async function connectionStore() {
+  await chrome.storage.local.setAccessLevel({accessLevel:'TRUSTED_CONTEXTS'});
+  return chrome.storage.local;
+}
 export function bridgeOrigin(value) {
   const url = new URL(value);
   if (url.username || url.password || url.search || url.hash || url.pathname !== '/' ||
