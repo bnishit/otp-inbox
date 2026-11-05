@@ -53,8 +53,15 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
   if(sender.id!==chrome.runtime.id || !sender.url?.startsWith(chrome.runtime.getURL('panel.html')) || message?.type!=='refresh-inbox')return;
   updateInbox().then(()=>respond({ok:true})).catch(()=>respond({ok:false}));return true;
 });
-chrome.notifications.onClicked.addListener(async id=>{
-  if(id!=='otp-login-ready')return;
-  try{const window=await chrome.windows.getCurrent();await chrome.sidePanel.open({windowId:window.id});}catch{}
-  chrome.notifications.clear(id);
-});
+let notificationClickRegistered=false;
+function registerNotificationClick() {
+  if(notificationClickRegistered || !chrome.notifications?.onClicked)return;
+  chrome.notifications.onClicked.addListener(async id=>{
+    if(id!=='otp-login-ready')return;
+    try{const window=await chrome.windows.getCurrent();await chrome.sidePanel.open({windowId:window.id});}catch{}
+    chrome.notifications.clear(id);
+  });
+  notificationClickRegistered=true;
+}
+registerNotificationClick();
+chrome.permissions.onAdded.addListener(registerNotificationClick);

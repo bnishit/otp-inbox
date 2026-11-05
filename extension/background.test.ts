@@ -5,12 +5,13 @@ import {inboxItems,arrivals} from './inbox.js';
 function fixture(initial:any={}) {
  const state:any={connection:{origin:'https://bridge.example.test',token:'synthetic-reader-key'},...initial},events:any={},calls:any[]=[];
  const listener=(name:string)=>({addListener:(fn:any)=>events[name]=fn});
- const chrome:any={runtime:{id:'test-extension',getURL:(p:string)=>'chrome-extension://test-extension/'+p,onInstalled:listener('installed'),onStartup:listener('startup'),onMessage:listener('message')},storage:{session:{get:async(keys:any)=>Object.fromEntries((Array.isArray(keys)?keys:[keys]).map(k=>[k,state[k]])),set:async(v:any)=>Object.assign(state,v),remove:async(key:string)=>{delete state[key];}},onChanged:listener('storage')},alarms:{create:async(...v:any[])=>calls.push(['alarm',...v]),clear:async(...v:any[])=>calls.push(['clear',...v]),onAlarm:listener('alarm')},action:{setBadgeText:async(v:any)=>calls.push(['badge',v.text]),setBadgeBackgroundColor:async()=>{}},permissions:{contains:async()=>state.alerts!==false},notifications:{create:async(...v:any[])=>{if(state.notificationFailure)throw Error('notifications unavailable');calls.push(['notification',...v]);},clear:async()=>{},onClicked:listener('notification-click')},sidePanel:{setPanelBehavior:async()=>{},open:async()=>{}},windows:{getCurrent:async()=>({id:1})}};
+ const chrome:any={runtime:{id:'test-extension',getURL:(p:string)=>'chrome-extension://test-extension/'+p,onInstalled:listener('installed'),onStartup:listener('startup'),onMessage:listener('message')},storage:{session:{get:async(keys:any)=>Object.fromEntries((Array.isArray(keys)?keys:[keys]).map(k=>[k,state[k]])),set:async(v:any)=>Object.assign(state,v),remove:async(key:string)=>{delete state[key];}},onChanged:listener('storage')},alarms:{create:async(...v:any[])=>calls.push(['alarm',...v]),clear:async(...v:any[])=>calls.push(['clear',...v]),onAlarm:listener('alarm')},action:{setBadgeText:async(v:any)=>calls.push(['badge',v.text]),setBadgeBackgroundColor:async()=>{}},permissions:{onAdded:listener('permission-added'),contains:async()=>state.alerts!==false},notifications:{create:async(...v:any[])=>{if(state.notificationFailure)throw Error('notifications unavailable');calls.push(['notification',...v]);},clear:async()=>{},onClicked:listener('notification-click')},sidePanel:{setPanelBehavior:async()=>{},open:async()=>{}},windows:{getCurrent:async()=>({id:1})}};
+ if(state.notificationsUnavailable)delete chrome.notifications;
  let items:any[]=[],fail=false,networkHook:any;
  const network=async(url:any,options:any)=>{calls.push(['fetch',url,JSON.parse(options.body)]);if(networkHook)await networkHook();if(fail)throw Error('provider may include secret');return Response.json({items});};
  const code=readFileSync(new URL('./background.js',import.meta.url),'utf8').replace(/^import .*;\n/gm,'');
  const worker=new Function('chrome','fetch','bridgeOrigin','inboxItems','arrivals',code+'\nreturn {updateInbox,startInbox};')(chrome,network,bridgeOrigin,inboxItems,arrivals);
- return {worker,state,events,calls,setItems:(v:any[])=>items=v,fail:()=>fail=true,hook:(fn:any)=>networkHook=fn};
+ return {worker,state,events,calls,chrome,setItems:(v:any[])=>items=v,fail:()=>fail=true,hook:(fn:any)=>networkHook=fn};
 }
 const item=(id:string)=>({id,status:'available',secret_type:'link',channel:'email',account:'owner@example.test',service_hint:'Afterspan',received_at:new Date().toISOString(),expires_at:new Date(Date.now()+60000).toISOString(),link:'https://example.test/#privatevalueforsyntheticcheck',code:'privatevalueforsyntheticcheck',preview:'privatevalueforsyntheticcheck'});
 test('background detects new arrivals without a panel or watch and never claims a secret',async()=>{
@@ -49,4 +50,13 @@ test('worker restarts restore polling without duplicate alerts; a cleared browse
  const resumed=fixture(JSON.parse(JSON.stringify(first.state)));resumed.setItems([item('one')]);await resumed.worker.startInbox();
  expect(resumed.calls.filter(c=>c[0]==='notification')).toHaveLength(0);expect(resumed.calls.some(c=>c[0]==='alarm')).toBe(true);
  const restarted=fixture({connection:undefined});await restarted.worker.startInbox();expect(restarted.calls.filter(c=>c[0]==='fetch')).toHaveLength(0);expect(restarted.state.inbox.status).toBe('disconnected');
+});
+
+test('missing optional notification API cannot prevent startup; granting it registers clicks once',async()=>{
+ const f=fixture({alerts:false,notificationsUnavailable:true});
+ await f.worker.startInbox();f.setItems([item('new')]);await f.worker.updateInbox();
+ expect(f.state.inbox.items).toHaveLength(1);expect(f.calls.filter(c=>c[0]==='badge').at(-1)[1]).toBe('1');
+ expect(f.events['notification-click']).toBeUndefined();
+ let listeners=0;f.chrome.notifications={onClicked:{addListener:()=>listeners++}};
+ f.events['permission-added']();f.events['permission-added']();expect(listeners).toBe(1);
 });
