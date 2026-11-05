@@ -6,16 +6,6 @@ export function bridgeOrigin(value) {
   return url.origin;
 }
 
-export function loginMatches(items, watch, now = Date.now()) {
-  return items.filter(item => {
-    const received=Date.parse(item.received_at), expires=Date.parse(item.expires_at);
-    return ['available','claimed_by_you'].includes(item.status) && Number.isFinite(received) && Number.isFinite(expires) &&
-      expires > now && received >= Date.parse(watch.since) &&
-      (watch.channel !== 'email' || (item.channel === 'email' && item.account?.toLowerCase() === watch.account.toLowerCase())) &&
-      (watch.channel !== 'sms' || item.channel === 'sms');
-  });
-}
-
 export function safeLink(claim, item, targetOrigin) {
   if (claim.secret_type !== 'link' || typeof claim.link !== 'string') throw new UserMessage('This is not a sign-in link.');
   const url=new URL(claim.link);

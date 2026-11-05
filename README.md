@@ -22,7 +22,7 @@ No hosted account. No AI API key. No permanent code database. You run the server
 
 ## Login helper and sign-in links
 
-Use the [Chrome login helper](docs/browser-helper.md) to watch one login, fill a code or open an approved email sign-in link. [Recipient aliases and link rules](docs/login-links.md) reuse existing inbox access and claim ownership. This source build needs a reviewed backend/collector rollout and private configuration; it does not change a running deployment. The [product direction](docs/product-direction.md) explains the boundary for future SMS and transaction actions.
+Use the [Chrome login helper](docs/browser-helper.md) to see arrivals automatically, copy/fill a code or open an approved email sign-in link. [Recipient aliases and link rules](docs/login-links.md) reuse existing inbox access and claim ownership. This source build needs a reviewed backend/collector rollout and private configuration; it does not change a running deployment. The [product direction](docs/product-direction.md) explains the boundary for future SMS and transaction actions.
 
 ## Why it exists
 
