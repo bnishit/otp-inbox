@@ -41,6 +41,7 @@ export async function automaticFill(message,sender) {
     if(!result[0]?.result?.ok)return;
     automaticFills[active.id]=key;
     await chrome.storage.session.set({automaticFills:Object.fromEntries(Object.entries(automaticFills).slice(-100)),automaticFillStatus:{origin,status:'filled',at:new Date().toISOString()}});
+    try{if(chrome.notifications && await chrome.permissions.contains({permissions:['notifications']}))await chrome.notifications.create('otp-login-ready',{type:'basic',iconUrl:'icon.png',title:'Login code filled',message:'A fresh code was filled on your selected login page. No action needed.'});}catch{}
   } catch {
     await chrome.storage.session.set({automaticFillStatus:{origin,status:'manual',at:new Date().toISOString()}});
   } finally {running.delete(sender.tab.id);}

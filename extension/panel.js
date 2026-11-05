@@ -47,10 +47,10 @@ async function useItem(item,action) {
   finally {busy=false;await refresh();}
 }
 async function renderInbox() {
-  const {inbox}=await chrome.storage.session.get('inbox');
+  const {inbox,automaticFillStatus}=await chrome.storage.session.get(['inbox','automaticFillStatus']);
   const {autoFillSites={}}=await store.get('autoFillSites');
   const autoRule=autoFillSites[target?.origin];
-  $('auto-state').textContent=autoRule?'Automatic login filling is on here for '+autoRule.service+'.':'Automatic fill is off on this site.';
+  $('auto-state').textContent=autoRule?'Automatic login filling is on here for '+autoRule.service+'.'+(automaticFillStatus?.origin===target?.origin&&automaticFillStatus.status==='filled'?' Last code filled automatically at '+new Date(automaticFillStatus.at).toLocaleTimeString()+'.':''):'Automatic fill is off on this site.';
   const all=inboxItems(inbox?.items),service=$('service').value.trim().toLowerCase(),account=$('account').value.trim().toLowerCase();
   const items=all.filter(item=>Date.parse(item.received_at)>=since && (!account||item.account?.toLowerCase()===account) &&
     (!service||[item.service_hint,item.sender].filter(Boolean).join(' ').toLowerCase().includes(service)));
@@ -102,5 +102,5 @@ $('disconnect').onclick=async()=>{const origin=connection?.origin,{autoFillSites
 function updateTarget(next){target=next;if(next?.origin&&new URL(next.origin).hostname==='blinkit.com')$('auto-service').value='Blinkit';$('target').textContent=next?.origin?new URL(next.origin).hostname:'Open on a login page to fill, or copy a code from here';if(connection)renderInbox();}
 $('use-page').onclick=async()=>{try{const [tab]=await chrome.tabs.query({active:true,currentWindow:true});const result=await chrome.scripting.executeScript({target:{tabId:tab.id},func:()=>location.origin});const origin=bridgeOrigin(result[0]?.result);const next={tabId:tab.id,origin};updateTarget(next);await chrome.storage.session.set({target:next});}catch{say('Open the bridge icon on the login page to grant access. Copy and Open still work here.');}};
 const saved=await chrome.storage.session.get('target');const remembered=await store.get('connection');connection=remembered.connection||null;showConnection();updateTarget(saved.target);if(connection)await refresh();
-chrome.storage.onChanged.addListener((changes,area)=>{if(area!=='session')return;if(changes.target)updateTarget(changes.target.newValue);if(changes.inbox&&connection)renderInbox();});
+chrome.storage.onChanged.addListener((changes,area)=>{if(area!=='session')return;if(changes.target)updateTarget(changes.target.newValue);if((changes.inbox||changes.automaticFillStatus)&&connection)renderInbox();});
 setInterval(()=>{if(connection)refresh();},5000);

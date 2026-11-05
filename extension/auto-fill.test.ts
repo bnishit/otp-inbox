@@ -14,7 +14,7 @@ function fixture(options:any={}) {
  const state:any={connection:{origin:'https://bridge.example.test',token:'synthetic-browser-reader'},autoFillSites:{'https://blinkit.com':rule}},session:any={},calls:any[]=[];
  const sender:any={id:'extension',frameId:0,documentId:'document-one',url:'https://blinkit.com/',tab:{id:1},...options.sender};
  let active:any={id:1,url:'https://blinkit.com/'};
- const chrome:any={runtime:{id:'extension'},tabs:{query:async()=>[active]},storage:{session:{get:async()=>session,set:async(v:any)=>Object.assign(session,v)}},scripting:{executeScript:async(value:any)=>{calls.push(['script',value.args,value.target]);return [{result:{ok:options.fields!==false}}];}}};
+ const chrome:any={permissions:{contains:async()=>options.alerts!==false},notifications:{create:async(id:any,value:any)=>{if(options.notificationFailure)throw Error('unavailable');calls.push(['notification',value]);}},runtime:{id:'extension'},tabs:{query:async()=>[active]},storage:{session:{get:async()=>session,set:async(v:any)=>Object.assign(session,v)}},scripting:{executeScript:async(value:any)=>{calls.push(['script',value.args,value.target]);return [{result:{ok:options.fields!==false}}];}}};
  const store={get:async()=>state};
  const fetcher=async(url:string,init:any)=>{calls.push(['fetch',url,JSON.parse(init.body)]);if(url.endsWith('/v1/claim')){if(options.navigate)active={id:1,url:'https://other.example.test/'};if(options.disconnect)delete state.connection;return Response.json({...item(),code:'1357',...options.claim});}return Response.json({items:options.items||[item()]});};
  const source=readFileSync(new URL('./auto-fill.js',import.meta.url),'utf8').replace(/^import .*;\n/gm,'').replaceAll('export ','');
@@ -38,4 +38,9 @@ test('navigation, disconnect or an expired claim prevents the code write',async(
  for(const options of [{navigate:true},{disconnect:true},{claim:{expires_at:'not-a-date'}},{claim:{expires_at:new Date(now-1).toISOString()}}]){
   const f=fixture(options);await f.run();expect(f.calls.filter(c=>c[0]==='script')).toHaveLength(1);expect(f.session.automaticFillStatus?.status).not.toBe('filled');
  }
+});
+
+test('automatic fill confirms with a generic popup; notification failure never undoes a successful fill receipt',async()=>{
+ const f=fixture();await f.run();const alerts=f.calls.filter(c=>c[0]==='notification');expect(alerts).toHaveLength(1);expect(alerts[0][1].title).toBe('Login code filled');expect(JSON.stringify(alerts)).not.toContain('1357');
+ for(const options of [{notificationFailure:true},{alerts:false}]){const f=fixture(options);await f.run();expect(f.session.automaticFillStatus.status).toBe('filled');expect(f.calls.filter(c=>c[0]==='notification')).toHaveLength(0);}
 });
