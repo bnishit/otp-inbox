@@ -144,3 +144,56 @@ test('email heartbeat distinguishes setup, healthy, errors, and stale collectors
   expect((await post('recent',{})).body.sources[0].status).toBe('error');
   expect((await post('source-heartbeat',{status:'ok',checked_at:'invalid'},key)).status).toBe(400);
 });
+
+test('approved alias and authenticated sign-in link survive capture, exact lookup and reserved claim',async()=>{
+  let clock=Date.now(); const key='e'.repeat(40);
+  const bridge=createBridge(ingest,{codex,claude},()=>clock,{personal:{email:'owner@example.test',aliases:['alias@example.test'],label:'Personal',token:key}},[
+    {service:'Afterspan',sender:'signin@example.test',origin:'https://afterspan.example.test',pathname:'/app',parameter:'sign-in',location:'fragment',max_age_seconds:120}
+  ]);
+  const post=async(path:string,data:any,auth=codex)=>{const r=await bridge(new Request('https://test/v1/'+path,{method:'POST',headers:{authorization:'Bearer '+auth},body:JSON.stringify(data)}));return {status:r.status,body:await r.json() as any};};
+  const link='https://afterspan.example.test/app#sign-in=as_login_syntheticletters';
+  const mail={message:'Sign in to Afterspan\nUse this one-time link within 15 minutes:\n'+link,sender:'Afterspan <signin@example.test>',message_id:'alias-link',recipient:'alias@example.test',authenticated_domain:'example.test',received_at:new Date(clock).toISOString()};
+  const since=mail.received_at; const waiting=post('recent',{service:'Afterspan',account:'alias@example.test',channel:'email',since,wait_seconds:1});
+  await new Promise(r=>setTimeout(r,5));const receipt=await post('email',mail,key);
+  expect(receipt.body.status).toBe('available');
+  const found=(await waiting).body;expect(found.status).toBe('ready');expect(found.items).toHaveLength(1);
+  const item=found.items[0];expect(item.mailbox).toBe('owner@example.test');expect(item.account).toBe('alias@example.test');expect(item.secret_type).toBe('link');expect(item.link_origin).toBe('https://afterspan.example.test');
+  expect(JSON.stringify(found)).not.toContain('as_login_syntheticletters');expect(JSON.stringify(found)).not.toContain('#sign-in');
+  expect((await post('recent',{account:'owner@example.test'})).body.items).toHaveLength(0);
+  expect((await post('claim',{id:item.id,service:'Other'})).status).toBe(409);
+  expect((await post('claim',{id:item.id,service:'Afterspan'})).body.link).toBe(link);
+  expect((await post('claim',{id:item.id},claude)).status).toBe(409);
+  expect((await post('claim',{id:item.id})).body.link).toBe(link);
+  clock+=1000;expect((await post('email',{...mail,capture_method:'email_poll'},key)).body.reason).toBe('duplicate');
+  clock+=119001;expect((await post('claim',{id:item.id})).status).toBe(404);
+});
+
+test('unsupported recipients and conflicting headers cannot create available entries; reasons stay visible',async()=>{
+  const clock=Date.now(),key='e'.repeat(40);
+  const bridge=createBridge(ingest,{codex},()=>clock,{personal:{email:'owner@example.test',aliases:['alias@example.test'],label:'Personal',token:key}});
+  const post=async(path:string,data:any,auth=codex)=>(await bridge(new Request('https://test/v1/'+path,{method:'POST',headers:{authorization:'Bearer '+auth},body:JSON.stringify(data)}))).json();
+  const mail={message:'Contoso verification code: 246810',message_id:'test',received_at:new Date(clock).toISOString()};
+  expect((await post('email',{...mail,recipient:'stranger@example.test',account:'alias@example.test'},key)).reason).toBe('recipient_not_approved');
+  expect((await post('email',{...mail,recipient:'alias@example.test',recipient_conflict:true},key)).reason).toBe('ambiguous_recipient');
+  const found=await post('recent',{});expect(found.items).toHaveLength(0);expect(found.sources[0].capture_counts).toEqual({recipient_not_approved:1,ambiguous_recipient:1});
+  expect(JSON.stringify(found)).not.toContain('stranger');
+});
+
+test('unconfigured links stay reviewable, never leak their secret, and URL digits never become a code',async()=>{
+  const clock=Date.now(),key='e'.repeat(40);
+  const bridge=createBridge(ingest,{codex},()=>clock,{personal:{email:'owner@example.test',label:'Personal',token:key}});
+  const post=async(path:string,data:any,auth=codex)=>(await bridge(new Request('https://test/v1/'+path,{method:'POST',headers:{authorization:'Bearer '+auth},body:JSON.stringify(data)}))).json();
+  await post('email',{message:'Sign in to Afterspan with this one-time link:\nhttps://example.test/123456?secret=onlyletters#anothersecret',sender:'Afterspan',message_id:'unknown-link',received_at:new Date(clock).toISOString()},key);
+  const found=await post('recent',{service:'Afterspan'});expect(found.status).toBe('needs_review');expect(found.items[0].review_reason).toBe('unsupported_login_link');
+  for(const secret of ['123456','onlyletters','anothersecret'])expect(JSON.stringify(found)).not.toContain(secret);
+  expect((await post('claim',{id:found.items[0].id})).error).toBe('unsupported_login_link');
+  expect(parseOtp('Your OTP: 246810 https://example.test/123456')?.code).toBe('246810');
+});
+
+test('code plus login link stays review-only rather than choosing a secret',async()=>{
+  const clock=Date.now(),key='e'.repeat(40);
+  const bridge=createBridge(ingest,{codex},()=>clock,{personal:{email:'owner@example.test',label:'Personal',token:key}},[{service:'Afterspan',sender:'signin@example.test',origin:'https://afterspan.example.test',pathname:'/app',parameter:'sign-in',location:'fragment',max_age_seconds:600}]);
+  const post=async(path:string,data:any,auth=codex)=>(await bridge(new Request('https://test/v1/'+path,{method:'POST',headers:{authorization:'Bearer '+auth},body:JSON.stringify(data)}))).json();
+  const delivered=await post('email',{message:'Afterspan one-time code: 246810\nhttps://afterspan.example.test/app#sign-in=as_login_syntheticletters',sender:'signin@example.test',authenticated_domain:'example.test',message_id:'mixed',received_at:new Date(clock).toISOString()},key);
+  expect(delivered.status).toBe('needs_review');expect((await post('claim',{id:delivered.id})).error).toBe('multiple_secret_types');
+});

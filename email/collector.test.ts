@@ -32,3 +32,27 @@ test('sent-only messages are skipped while a message delivered to the same inbox
   expect(deliveries).toHaveLength(1);expect(JSON.parse(deliveries[0].payload).message_id).toBe('delivered-to-self');
   expect(f.posts.some(p=>p.url.endsWith('/v1/source-heartbeat'))).toBe(true);
 });
+
+test('HTML sign-in buttons retain their target and delivery identity is distinct from mailbox',()=>{
+  const f=fixture();const url='https://afterspan.example.test/app#sign-in=as_login_syntheticletters';
+  const text=f.context.otpMailText({mimeType:'text/html',body:{data:Buffer.from('<p>Use this one-time link</p><a href="'+url+'">Sign in</a><a href="https://example.test/privacy">Privacy</a>').toString('base64url')}},data=>Buffer.from(data,'base64url').toString('utf8'));
+  const excerpt=f.context.otpMailExcerpt('Sign in to Afterspan',text);expect(excerpt).toContain(url);
+  const identity=f.context.otpMailIdentity([{name:'Delivered-To',value:'alias@example.test'},{name:'To',value:'Alias <alias@example.test>'},{name:'Authentication-Results',value:'mx.google.com; dkim=pass; dmarc=pass (p=NONE) header.from=example.test'}]);
+  expect(identity).toEqual({recipient:'alias@example.test',recipient_conflict:false,authenticated_domain:'example.test'});
+  expect(f.context.otpMailIdentity([{name:'To',value:'a@example.test, b@example.test'}]).recipient_conflict).toBe(true);
+  expect(f.context.otpMailIdentity([{name:'To',value:'alias@example.test'},{name:'Delivered-To',value:'owner@example.test'}]).recipient_conflict).toBe(true);
+  expect(f.context.otpMailIdentity([{name:'Authentication-Results',value:'forged.test; dmarc=pass header.from=example.test'}]).authenticated_domain).toBeUndefined();
+});
+
+test('polling sends minimal recipient and authentication evidence without forwarding unrelated headers',()=>{
+  const payload={headers:[{name:'Subject',value:'Contoso verification code'},{name:'From',value:'sender@example.test'},{name:'To',value:'alias@example.test'},{name:'Delivered-To',value:'alias@example.test'},{name:'Authentication-Results',value:'mx.google.com; dmarc=pass header.from=example.test'},{name:'X-Unrelated',value:'private unrelated metadata'}],mimeType:'text/plain',body:{data:Buffer.from('Contoso verification code: 246810').toString('base64url')}};
+  const f=fixture('owner@example.test',[{id:'alias',labelIds:['INBOX'],internalDate:String(Date.now()),payload}]);
+  f.context.pollOtpInbox();const delivery=JSON.parse(f.posts.find(p=>p.url.endsWith('/v1/email')).payload);
+  expect(delivery.recipient).toBe('alias@example.test');expect(delivery.authenticated_domain).toBe('example.test');expect(JSON.stringify(delivery)).not.toContain('private unrelated metadata');
+});
+
+test('plain fallback without a link does not discard the HTML sign-in button',()=>{
+  const f=fixture();const url='https://afterspan.example.test/app#sign-in=as_login_syntheticletters';
+  const text=f.context.otpMailText({mimeType:'multipart/alternative',parts:[{mimeType:'text/plain',body:{data:Buffer.from('Use your one-time link.').toString('base64url')}},{mimeType:'text/html',body:{data:Buffer.from('<a href="'+url+'">Sign in</a>').toString('base64url')}}]},data=>Buffer.from(data,'base64url').toString('utf8'));
+  expect(f.context.otpMailExcerpt('Sign in',text)).toContain(url);
+});

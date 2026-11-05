@@ -56,3 +56,26 @@ test('healthy watches are not renewed on every timer tick',async()=>{
 test('mailbox watches renew after one day using the existing backup heartbeat cadence',async()=>{
  const f=fixture();await f.push.start();f.advance(86400001);await f.push.renewDue();expect(f.counts().watches).toBe(2);expect((await f.recent()).sources[0].push_status).toBe('watching');
 });
+
+test('push captures approved alias link once and fallback delivery stays a duplicate',async()=>{
+ const clock=Date.now(),aliasSources={personal:{...sources.personal,aliases:['alias@example.test']}};
+ const rule={service:'Afterspan',sender:'signin@example.test',origin:'https://afterspan.example.test',pathname:'/app',parameter:'sign-in',location:'fragment' as const,max_age_seconds:600};
+ const bridge=createBridge('phone',{agent:'reader'},()=>clock,aliasSources,[rule]);
+ const link='https://afterspan.example.test/app#sign-in=as_login_syntheticletters';
+ const payload={headers:[{name:'From',value:'Afterspan <signin@example.test>'},{name:'Subject',value:'Sign in to Afterspan'},{name:'To',value:'alias@example.test'},{name:'Delivered-To',value:'alias@example.test'},{name:'Authentication-Results',value:'mx.google.com; dmarc=pass header.from=example.test'}],mimeType:'text/plain',body:{data:Buffer.from('Use this one-time link within 15 minutes:\n'+link).toString('base64url')}};
+ let reads=0;
+ const network:any=async(url:any)=>{
+  if(url.endsWith('/token'))return Response.json({access_token:'synthetic-access'});
+  if(url.endsWith('/profile'))return Response.json({emailAddress:'owner@example.test'});
+  if(url.endsWith('/watch'))return Response.json({expiration:String(clock+604800000)});
+  if(url.includes('/messages?'))return Response.json({messages:[{id:'alias-link'}]});
+  if(url.includes('/messages/alias-link')){reads++;return Response.json({internalDate:String(clock),labelIds:['INBOX'],payload});}
+  throw Error('Unexpected destination');
+ };
+ const push=createGmailPush(config,aliasSources,bridge,network,()=>clock);await push.start();await push.renewDue();
+ const post=async(path:string,data:any,key='reader')=>(await bridge(new Request('https://test/v1/'+path,{method:'POST',headers:{authorization:'Bearer '+key},body:JSON.stringify(data)}))).json();
+ const recent=await post('recent',{account:'alias@example.test',service:'Afterspan',channel:'email'});
+ expect(recent.items).toHaveLength(1);expect(recent.items[0].capture_method).toBe('gmail_push');expect(recent.items[0].status).toBe('available');expect(reads).toBe(1);expect(JSON.stringify(recent)).not.toContain('syntheticletters');
+ expect((await post('email',{message:'Use this one-time link within 15 minutes:\n'+link,sender:'signin@example.test',recipient:'alias@example.test',authenticated_domain:'example.test',message_id:'alias-link',received_at:new Date(clock).toISOString()},sources.personal.token)).reason).toBe('duplicate');
+ expect((await post('claim',{id:recent.items[0].id,service:'Afterspan'})).link).toBe(link);
+});

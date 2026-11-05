@@ -95,8 +95,8 @@ For a custom REST tool use [the API reference](api.md). Treat `otp_claim` as a s
 ## The expected login trace
 
 1. User authorizes a login task.
-2. Agent records current time, then requests a code from that service.
+2. Agent records current time, then requests a code or sign-in link from that service.
 3. It lists or waits with that `since`, service and exact account/channel.
 4. It confirms the matching entry; ambiguity stays unresolved until narrowed.
-5. It claims that entry and enters the literal code directly in the authorized login.
-6. It reports the login outcome without printing the code. OTP possession does not authorize a purchase or security change.
+5. It claims that entry and enters the literal `code` or opens the exact claimed `link` only in that authorized login. `secret_type` identifies which response it received.
+6. It reports the login outcome without printing or saving either secret. Unsupported links remain review-only; see [link rules](login-links.md). OTP possession does not authorize a purchase or security change.

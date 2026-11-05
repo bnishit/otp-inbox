@@ -25,6 +25,7 @@ def validate_url(url):
 def render(config,path=DEFAULT):
     path=Path(path);folder=path.parent
     env={'PORT':'8787','OTP_INGEST_TOKEN':config['ingest_token'],'OTP_CLIENT_TOKENS':json.dumps(config['clients'],separators=(',',':')),'OTP_EMAIL_SOURCES':json.dumps(config['mailboxes'],separators=(',',':'))}
+    if config.get('login_link_rules'):env['OTP_LOGIN_LINK_RULES']=json.dumps(config['login_link_rules'],separators=(',',':'))
     if config.get('gmail_push'):env['GMAIL_PUSH_CONFIG']=json.dumps(config['gmail_push'],separators=(',',':'))
     private_write(path,json.dumps(config,indent=2)+'\n')
     private_write(folder/'server.env',''.join(k+'='+v+'\n' for k,v in env.items()))
