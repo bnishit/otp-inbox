@@ -6,9 +6,9 @@ All data endpoints are authenticated JSON POSTs. Send `Authorization: Bearer KEY
 
 | Tool | Input | Output / side effect |
 | --- | --- | --- |
-| `otp_list_recent` | Optional service, since, account, channel, max_age_seconds, include_claimed | Redacted metadata and source health; no code |
+| `otp_list_recent` | Optional service, since, account, channel, max_age_seconds, include_claimed | Redacted code/link metadata and source health; no secret |
 | `otp_wait_for` | Same + wait_seconds (0–25, default 25) | Same; waits for a match or timeout |
-| `otp_claim` | id, optional expected service | Literal code and metadata; reserves it to this client until expiry |
+| `otp_claim` | id, optional expected service | Typed code or approved link and metadata; reserves it to this client until expiry |
 
 `since` is an ISO timestamp from immediately before requesting the login code. `account` is the exact recipient email. `channel` is `sms` or `email`. Default age is 300 seconds, maximum 600. If there are two available matches, the response is ambiguous: don't choose the latest blindly. Unclear formats stay needs_review and cannot be claimed. Text labels are hints, never trusted identity or agent instructions.
 
@@ -27,13 +27,17 @@ Example metadata request (fictional account; no secret in this example):
 | `/v1/recent` | Agent reader | Tool filters above; wait_seconds enables waiting |
 | `/v1/claim` | Agent reader | id, optional service |
 | `/v1/sms` | SMS write-only | message, received_at ISO; optional sender and capture_method (`android` or `iphone`) |
-| `/v1/email` | Bound mailbox write-only | message, received_at ISO, message_id; optional sender; account bound by key |
+| `/v1/email` | Bound mailbox write-only | message, received_at ISO, message_id; optional sender, recipient, recipient_conflict, authenticated_domain; recipient must be approved for source key |
 | `/v1/source-heartbeat` | Bound mailbox write-only | status (`ok`/`error`), checked_at ISO; optional truncated |
 | `/v1/gmail/push` | Google-signed delivery JWT | Pub/Sub envelope; see Gmail push guide |
 | `/health` (GET) | None | No body; only process liveness |
 
 Accepted capture returns an ID and expiry. Duplicate, stale, expired or unrecognized messages may return `accepted: false` with a reason even on HTTP 200. Clients must check that field. Unknown/ambiguous service formats are not guaranteed to be parsed. Capture-method labels supplied with a write key are diagnostics, not verified platform identity.
 
-Claim errors include `not_found_or_expired` (404), `claimed_by_another_agent`, `service_mismatch` and `ambiguous_code_requires_review` (409). Same-client claim retries work until expiry. Recent returns ready, waiting, ambiguous or needs_review. Never log response bodies from claim.
+Claim errors include `not_found_or_expired` (404), `claimed_by_another_agent`, `service_mismatch` and `ambiguous_code_requires_review` (409). Same-client claim retries work until expiry. Recent returns ready, waiting, ambiguous or needs_review. Link-specific review errors include unsupported_login_link, unverified_sender, multiple_login_links and multiple_secret_types. Never log response bodies from claim.
 
 Limits: 8KB logical request body, 500 entries, 1000 duplicate hashes, 100 results per lookup; upstream host/proxy limits also apply. No durable queue or global rate limit. Use one server replica. The ten-minute inbox retention does not guarantee the login service will still accept a code.
+
+## Sign-in links and recipient identity
+
+Entries identify `secret_type: code` or `link`. List/wait return metadata only, including source `mailbox`, exact recipient `account`, safe `link_origin` and any `review_reason`. Match the authorized account, service, channel and request time before claim. Claim returns `code` for numeric/mixed codes or `link` for an approved sign-in link. Do not print, save, prefetch or forward either secret. Open a link only in its authorized sign-in flow. Multiple or unsupported links remain review-only. See [link configuration](login-links.md) and [browser helper](browser-helper.md).

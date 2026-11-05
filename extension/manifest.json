@@ -1,0 +1,48 @@
+{
+  "manifest_version": 3,
+  "name": "OTP Bridge \u2014 Login helper",
+  "version": "0.2.0",
+  "minimum_chrome_version": "124",
+  "description": "Bring a requested phone or email login to the page you are using. Fill a code or open an approved sign-in link with one click.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "sidePanel",
+    "clipboardWrite"
+  ],
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Watch this login",
+    "default_popup": "launcher.html"
+  },
+  "side_panel": {
+    "default_path": "panel.html"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; base-uri 'none'"
+  },
+  "optional_permissions": [
+    "notifications"
+  ],
+  "icons": {
+    "48": "icon.png"
+  },
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+Y",
+        "mac": "Command+Shift+Y"
+      },
+      "description": "Watch this login"
+    }
+  }
+}

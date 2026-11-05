@@ -18,7 +18,7 @@ function pollOtpInbox() {
     const profile = gmailRead('profile');
     if (profile.emailAddress.toLowerCase() !== OTP_ACCOUNT.toLowerCase()) throw new Error('Wrong Google account');
     const start = Date.now() - 600000;
-    const labels = '{otp "one time" "one-time" "verification code" "security code" "login code" "sign-in code" "authentication code" passcode "reset code" 验证码}';
+    const labels = '{otp "one time" "one-time" "verification code" "security code" "login code" "sign-in code" "sign in" "sign-in link" "magic link" "login link" "authentication code" passcode "reset code" 验证码}';
     const query = 'after:' + Math.floor(start / 1000) + ' -in:spam -in:trash ' + labels;
     step = 'mail search';
     const found = gmailRead('messages', {q: query, maxResults: 50});
@@ -28,16 +28,16 @@ function pollOtpInbox() {
       step = 'message read';
       const mail = gmailRead('messages/' + encodeURIComponent(item.id), {format: 'full'});
       const labels = mail.labelIds || [];
-      if (labels.includes('SENT') && !labels.includes('INBOX')) {cache.put(item.id, 'sent', 600); continue;}
+      if (labels.includes('SPAM') || labels.includes('TRASH') || (labels.includes('SENT') && !labels.includes('INBOX'))) {cache.put(item.id, 'sent', 600); continue;}
       const received = Number(mail.internalDate);
-      if (!Number.isFinite(received) || received <= start) continue;
+      if (!Number.isFinite(received) || received <= start || received > Date.now() + 15000) continue;
       const header = name => (mail.payload.headers || []).find(h => h.name.toLowerCase() === name)?.value || '';
       const text = otpMailText(mail.payload, data => Utilities.newBlob(Utilities.base64DecodeWebSafe(data)).getDataAsString('UTF-8'));
       const message = otpMailExcerpt(header('subject'), text);
       if (!message) {cache.put(item.id, 'skip', 600); continue;}
       step = 'candidate delivery';
-      const receipt = otpPost('/v1/email', {message, sender: header('from'), message_id: item.id, received_at: new Date(received).toISOString()});
-      if (receipt.accepted || ['duplicate', 'expired', 'not_recognized_as_otp'].includes(receipt.reason)) cache.put(item.id, 'seen', 600);
+      const receipt = otpPost('/v1/email', {...otpMailIdentity(mail.payload.headers || []), message, sender: header('from'), message_id: item.id, received_at: new Date(received).toISOString()});
+      if (receipt.accepted || ['duplicate', 'expired', 'not_recognized_as_otp', 'recipient_not_approved', 'ambiguous_recipient', 'stale_or_missing_timestamp'].includes(receipt.reason)) cache.put(item.id, 'seen', 600);
     }
     step = 'health report';
     otpPost('/v1/source-heartbeat', {status: 'ok', checked_at: new Date().toISOString(), truncated: !!found.nextPageToken});

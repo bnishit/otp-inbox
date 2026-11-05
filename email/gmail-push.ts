@@ -1,12 +1,12 @@
 import {createPublicKey, verify} from 'node:crypto';
-import {otpMailText, otpMailExcerpt} from './mail.js';
+import {otpMailText, otpMailExcerpt, otpMailIdentity} from './mail.js';
 
-type Source = {email: string; label: string; token: string};
+type Source = {email: string; label: string; token: string; aliases?: string[]};
 type Config = {clientId: string; clientSecret: string; topic: string; subscription: string;
   audience: string; serviceAccount: string; refreshTokens: Record<string,string>};
 type Fetch = typeof fetch;
 const json = (body: unknown, status = 200) => Response.json(body, {status, headers: {'cache-control':'no-store'}});
-const labels = '{otp "one time" "one-time" "verification code" "security code" "login code" "sign-in code" "authentication code" passcode "reset code" 验证码}';
+const labels = '{otp "one time" "one-time" "verification code" "security code" "login code" "sign-in code" "sign in" "sign-in link" "magic link" "login link" "authentication code" passcode "reset code" 验证码}';
 
 export function googlePushVerifier(audience: string, serviceAccount: string, network: Fetch = fetch, now = Date.now) {
   let keys: any[] = [], loaded = 0;
@@ -80,8 +80,8 @@ export function createGmailPush(config: Config, sources: Record<string,Source>, 
       const header=(name:string)=>(mail.payload?.headers||[]).find((h:any)=>h.name.toLowerCase()===name)?.value||'';
       const message=otpMailExcerpt(header('subject'),otpMailText(mail.payload,data=>Buffer.from(data,'base64url').toString('utf8')));
       if(!message){seen.set(key,now()+600000);continue;}
-      const receipt=await post(id,'/v1/email',{capture_method:'gmail_push',message,message_id:item.id,sender:header('from'),received_at:new Date(received).toISOString()});
-      if(receipt.accepted||['duplicate','expired','not_recognized_as_otp'].includes(receipt.reason))seen.set(key,now()+600000);
+      const receipt=await post(id,'/v1/email',{...otpMailIdentity(mail.payload?.headers || []),capture_method:'gmail_push',message,message_id:item.id,sender:header('from'),received_at:new Date(received).toISOString()});
+      if(receipt.accepted||['duplicate','expired','not_recognized_as_otp','recipient_not_approved','ambiguous_recipient','stale_or_missing_timestamp'].includes(receipt.reason))seen.set(key,now()+600000);
       else throw Error('Inbox did not accept delivery');
     }
     await heartbeat(id,'ok');
