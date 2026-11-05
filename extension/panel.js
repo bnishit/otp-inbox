@@ -48,6 +48,9 @@ async function useItem(item,action) {
 }
 async function renderInbox() {
   const {inbox}=await chrome.storage.session.get('inbox');
+  const {autoFillSites={}}=await store.get('autoFillSites');
+  const autoRule=autoFillSites[target?.origin];
+  $('auto-state').textContent=autoRule?'Automatic login filling is on here for '+autoRule.service+'.':'Automatic fill is off on this site.';
   const all=inboxItems(inbox?.items),service=$('service').value.trim().toLowerCase(),account=$('account').value.trim().toLowerCase();
   const items=all.filter(item=>Date.parse(item.received_at)>=since && (!account||item.account?.toLowerCase()===account) &&
     (!service||[item.service_hint,item.sender].filter(Boolean).join(' ').toLowerCase().includes(service)));
@@ -62,7 +65,7 @@ async function renderInbox() {
     else {if(target?.origin)add('Fill code on '+new URL(target.origin).hostname,'fill');add('Copy code','copy',!!target?.origin);}
     $('results').append(card);
   }
-  $('inbox-state').textContent=inbox?.status==='reauth'?'Your saved connection was refused. Disconnect and reconnect with an active browser key.':inbox?.status==='error'?'Cannot reach the bridge. Retrying automatically.':inbox?.sourceIssues?.length?'An inbox source needs attention. Other arrivals still appear here.':items.length?items.length+' recent login item'+(items.length===1?'':'s')+'. Nothing happens until you choose an action.':'Connected. New arrivals appear automatically; no watch needed.';
+  $('inbox-state').textContent=inbox?.status==='reauth'?'Your saved connection was refused. Disconnect and reconnect with an active browser key.':inbox?.status==='error'?'Cannot reach the bridge. Retrying automatically.':inbox?.sourceIssues?.length?'An inbox source needs attention. Other arrivals still appear here.':items.length?items.length+' recent login item'+(items.length===1?'':'s')+'. Codes fill automatically only on sites you enabled.':'Connected. New arrivals appear automatically; no watch needed.';
 }
 async function refresh() {
   if(!connection)return;
@@ -79,13 +82,24 @@ $('connect-form').onsubmit=async event=>{
     await store.set({connection});$('token').value='';showConnection();say('Connected. This Chrome profile will stay connected after restart.');await refresh();
   }catch(error){say(error instanceof UserMessage?error.message:'Could not connect. Check the bridge address and browser key.');}
 };
+$('enable-auto').onclick=async()=>{try{
+  if(!target?.origin)throw new UserMessage('Open the helper on your login page first.');
+  const service=$('auto-service').value.trim(),channel=$('auto-channel').value,account=$('auto-account').value.trim().toLowerCase();
+  if(!service||channel==='email'&&!account)throw new UserMessage('Set the service and exact email for email codes.');
+  if(!await chrome.permissions.request({origins:[target.origin+'/*']}))throw new UserMessage('Site access was not granted.');
+  const {autoFillSites={}}=await store.get('autoFillSites');autoFillSites[target.origin]={service,channel,account:channel==='email'?account:null};
+  await store.set({autoFillSites});
+  await chrome.scripting.executeScript({target:{tabId:target.tabId},files:['automatic-page.js']});
+  $('auto-state').textContent='Automatic login filling is on for '+new URL(target.origin).hostname+'. No watch or Fill click needed.';
+}catch(error){say(error instanceof UserMessage?error.message:'Could not enable automatic fill.');}};
+$('disable-auto').onclick=async()=>{if(!target?.origin)return;const {autoFillSites={}}=await store.get('autoFillSites');delete autoFillSites[target.origin];await store.set({autoFillSites});if(target.origin!==connection?.origin)await chrome.permissions.remove({origins:[target.origin+'/*']});$('auto-state').textContent='Automatic fill is off on this site.';};
 $('refresh').onclick=()=>refresh();
 $('notify').onclick=async()=>{try{say(await chrome.permissions.request({permissions:['notifications']})?'Desktop alerts enabled. Codes and links stay out of notifications.':'Alerts remain off. New arrivals still appear in the inbox and badge.');}catch{say('Desktop alerts are unavailable. The inbox still works.');}};
 $('service').oninput=()=>renderInbox();$('account').oninput=()=>renderInbox();
 $('new-only').onclick=()=>{since=Date.now();say('Showing only new arrivals. Request a fresh login now.');renderInbox();};
 $('all-recent').onclick=()=>{since=0;renderInbox();};
-$('disconnect').onclick=async()=>{const origin=connection?.origin;connection=null;$('results').replaceChildren();await store.remove(['connection','arrivalState']);if(origin)await chrome.permissions.remove({origins:[origin+'/*']});showConnection();say('Disconnected. Automatic checks have stopped.');};
-function updateTarget(next){target=next;$('target').textContent=next?.origin?new URL(next.origin).hostname:'Open on a login page to fill, or copy a code from here';if(connection)renderInbox();}
+$('disconnect').onclick=async()=>{const origin=connection?.origin,{autoFillSites={}}=await store.get('autoFillSites');connection=null;$('results').replaceChildren();await store.remove(['connection','arrivalState','autoFillSites']);const origins=[...new Set([...Object.keys(autoFillSites),...(origin?[origin]:[])])].map(value=>value+'/*');if(origins.length)await chrome.permissions.remove({origins});showConnection();say('Disconnected. Automatic checks have stopped.');};
+function updateTarget(next){target=next;if(next?.origin&&new URL(next.origin).hostname==='blinkit.com')$('auto-service').value='Blinkit';$('target').textContent=next?.origin?new URL(next.origin).hostname:'Open on a login page to fill, or copy a code from here';if(connection)renderInbox();}
 $('use-page').onclick=async()=>{try{const [tab]=await chrome.tabs.query({active:true,currentWindow:true});const result=await chrome.scripting.executeScript({target:{tabId:tab.id},func:()=>location.origin});const origin=bridgeOrigin(result[0]?.result);const next={tabId:tab.id,origin};updateTarget(next);await chrome.storage.session.set({target:next});}catch{say('Open the bridge icon on the login page to grant access. Copy and Open still work here.');}};
 const saved=await chrome.storage.session.get('target');const remembered=await store.get('connection');connection=remembered.connection||null;showConnection();updateTarget(saved.target);if(connection)await refresh();
 chrome.storage.onChanged.addListener((changes,area)=>{if(area!=='session')return;if(changes.target)updateTarget(changes.target.newValue);if(changes.inbox&&connection)renderInbox();});

@@ -41,6 +41,12 @@ if __name__=='__main__':
       const mixed=await page.evaluate(({source})=>(0,eval)('('+source+')')('AB12CD',location.origin),{source:fill.toString()});
       if(mixed.ok || await page.locator('input').inputValue()!=='')throw Error('Mixed code was written into a numeric field');
       results.push({name:'mixed code in numeric field',passed:true});
+      for(const [name,title,ok] of [['ready login probe','OTP Verification',true],['unmarked context probe','Search',false],['payment probe','OTP Verification - Confirm payment',false]]){
+        await page.setContent('<h1>'+title+'</h1><input autocomplete="one-time-code">');
+        const result=await page.evaluate(({source})=>(0,eval)('('+source+')')(null,location.origin),{source:fill.toString()});
+        if(result.ok!==ok || await page.locator('input').inputValue()!=='')throw Error('Probe regression: '+name);
+        results.push({name,passed:true});
+      }
       return {scope:'actual function in real Chromium; synthetic DOMs; not live login',results};
     }'''.replace('FUNCTION',function).replace('CASES',json.dumps(cases))
     try:
@@ -53,6 +59,6 @@ if __name__=='__main__':
         # CLI prints source as well. Retain the result only, which contains no secrets.
         output=result.stdout.split('### Result\n',1)[-1].split('### Ran Playwright code',1)[0].strip()
         parsed=json.loads(output)
-        if len(parsed.get('results',[])) != len(cases)+2 or not all(result.get('passed') for result in parsed['results']):raise RuntimeError('Browser regressions failed')
+        if len(parsed.get('results',[])) != len(cases)+5 or not all(result.get('passed') for result in parsed['results']):raise RuntimeError('Browser regressions failed')
         print(output)
     finally:subprocess.run(cli+['close'],cwd=ROOT,capture_output=True)

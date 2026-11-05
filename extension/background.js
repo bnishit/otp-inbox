@@ -1,3 +1,4 @@
+import {automaticFill,registerAutomaticSites} from './auto-fill.js';
 import {bridgeOrigin,connectionStore} from './core.js';
 import {inboxItems,arrivals} from './inbox.js';
 const alarm='otp-inbox-refresh';
@@ -43,15 +44,17 @@ async function startInbox() {
   if(running)await running;
   return updateInbox();
 }
-chrome.runtime.onInstalled.addListener(()=>{chrome.sidePanel.setPanelBehavior({openPanelOnActionClick:false});startInbox();});
-chrome.runtime.onStartup.addListener(()=>startInbox());
+chrome.runtime.onInstalled.addListener(()=>{chrome.sidePanel.setPanelBehavior({openPanelOnActionClick:false});startInbox();registerAutomaticSites().catch(()=>{});});
+chrome.runtime.onStartup.addListener(()=>{startInbox();registerAutomaticSites().catch(()=>{});});
 chrome.alarms.onAlarm.addListener(event=>{if(event.name===alarm)updateInbox();});
 chrome.storage.onChanged.addListener(async(changes,area)=>{
+  if(area==='local'&&changes.autoFillSites)registerAutomaticSites().catch(()=>{});
   if(area!=='local'||!changes.connection)return;
   await (await connectionStore()).remove('arrivalState');
   await startInbox();
 });
 chrome.runtime.onMessage.addListener((message,sender,respond)=>{
+  if(message?.type==='automatic-fill'){automaticFill(message,sender).then(()=>respond({ok:true})).catch(()=>respond({ok:false}));return true;}
   if(sender.id!==chrome.runtime.id || !sender.url?.startsWith(chrome.runtime.getURL('panel.html')) || message?.type!=='refresh-inbox')return;
   updateInbox().then(()=>respond({ok:true})).catch(()=>respond({ok:false}));return true;
 });

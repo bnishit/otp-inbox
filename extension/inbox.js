@@ -1,4 +1,4 @@
-// Store only display metadata. Background polling never claims or stores a secret.
+// Cache only display metadata; never cache a code or complete sign-in link.
 export function inboxItems(items, now = Date.now()) {
   return (Array.isArray(items) ? items : []).filter(item =>
     ['available','needs_review','claimed_by_you'].includes(item.status) &&
