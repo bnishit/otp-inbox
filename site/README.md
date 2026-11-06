@@ -6,4 +6,4 @@ Static HTML, CSS and a small guide picker. The public name is OTP Bridge; the re
 
 The Copy setup prompt button copies the README's full setup prompt. After editing that prompt, run `python3 scripts/sync_setup_prompt.py` to update its static HTML copy. Clipboard failure opens and selects the text for manual copying; no request or analytics event is sent.
 
-`privacy/index.html` is the maintainer-instance policy source. Deploy it with the page when data processing changes; it is not a policy for every fork. Current pilot feature links and setup instructions target `feat/automatic-site-fill` until that release merges.
+`privacy/index.html` is the maintainer-instance policy source. Deploy it with the page when data processing changes; it is not a policy for every fork. Feature links and setup instructions target `main`, which includes the browser and SMS observation pilot.

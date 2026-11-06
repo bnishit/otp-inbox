@@ -102,10 +102,10 @@
                 Bring iPhone SMS and Gmail into your own short-lived inbox. Phone capture depends on your configured trigger; Android has a Tasker recipe.
               </p>
               <a
-                href="https://github.com/bnishit/otp-inbox/blob/feat/automatic-site-fill/docs/iphone.md"
+                href="https://github.com/bnishit/otp-inbox/blob/main/docs/iphone.md"
                 >iPhone setup ↗</a
               ><a
-                href="https://github.com/bnishit/otp-inbox/blob/feat/automatic-site-fill/docs/android.md"
+                href="https://github.com/bnishit/otp-inbox/blob/main/docs/android.md"
                 >Android recipe ↗</a
               >
             </article>
@@ -116,10 +116,10 @@
                 Grant website access once. One fresh matching login code fills on the selected page. Save site exceptions, see arrivals, or explicitly open an approved email sign-in link.
               </p>
               <a
-                href="https://github.com/bnishit/otp-inbox/blob/feat/automatic-site-fill/docs/browser-helper.md"
+                href="https://github.com/bnishit/otp-inbox/blob/main/docs/browser-helper.md"
                 >Set up Chrome autofill ↗</a
               ><a
-                href="https://github.com/bnishit/otp-inbox/blob/feat/automatic-site-fill/docs/login-links.md"
+                href="https://github.com/bnishit/otp-inbox/blob/main/docs/login-links.md"
                 >Sign-in links ↗</a
               >
             </article>
@@ -132,10 +132,10 @@
                 API clients.
               </p>
               <a
-                href="https://github.com/bnishit/otp-inbox/blob/feat/automatic-site-fill/docs/agents.md"
+                href="https://github.com/bnishit/otp-inbox/blob/main/docs/agents.md"
                 >Connect your agent ↗</a
               ><a
-                href="https://github.com/bnishit/otp-inbox/blob/feat/automatic-site-fill/examples/agent-instructions.md"
+                href="https://github.com/bnishit/otp-inbox/blob/main/examples/agent-instructions.md"
                 >Give it the standing rule ↗</a
               >
             </article>
@@ -145,12 +145,12 @@
           <div class="section-head">
             <p class="eyebrow">USEFUL TODAY. ROOM TO GROW.</p>
             <h2>More than copying codes.<br /><em>Clear choices at every step.</em></h2>
-            <p>This broader pilot is available on the <a href="https://github.com/bnishit/otp-inbox/tree/feat/automatic-site-fill">automatic-fill branch</a>. It is not merged into main yet. Self-host it and load the unpacked helper; there is no hosted signup or store listing.</p>
+            <p>This broader pilot is included in the <a href="https://github.com/bnishit/otp-inbox/tree/main">main branch</a>. Self-host it and load the unpacked helper; there is no hosted signup or store listing.</p>
           </div>
           <div class="cards">
-            <article><span class="card-num">OWNER CHOICE / AVAILABLE</span><h3>Payments.<br />Your saved choice.</h3><p>Keep payment codes manual, fill them, or fill and submit. Enable this separately. Filling alone can authorize a charge on some bank pages. Recovery, transfers and withdrawals stay manual.</p><a href="https://github.com/bnishit/otp-inbox/blob/feat/automatic-site-fill/docs/browser-helper.md">Payment behavior and limits ↗</a></article>
-            <article><span class="card-num">SMS AI / OBSERVATION ONLY</span><h3>Understand messages.<br />Compare before acting.</h3><p>Optional AI predicts message type and code beside the existing parser. It sends whole SMS text to OpenAI and keeps comparison totals in the bridge. It never selects a fill code. Enabled on the maintainer pilot; off by default for new installs.</p><a href="https://github.com/bnishit/otp-inbox/blob/feat/automatic-site-fill/docs/sms-observation.md">AI data flow and limits ↗</a></article>
-            <article><span class="card-num">MESSAGE ACTIONS / ROADMAP</span><h3>A receipt today.<br />A useful next step tomorrow.</h3><p>Receipt categories, transaction lookup and named message rules are the next direction. They are not shipped actions. A URL in a message is never permission to open it or run an automation.</p><a href="https://github.com/bnishit/otp-inbox/blob/feat/automatic-site-fill/docs/product-direction.md">See the product direction ↗</a></article>
+            <article><span class="card-num">OWNER CHOICE / AVAILABLE</span><h3>Payments.<br />Your saved choice.</h3><p>Keep payment codes manual, fill them, or fill and submit. Enable this separately. Filling alone can authorize a charge on some bank pages. Recovery, transfers and withdrawals stay manual.</p><a href="https://github.com/bnishit/otp-inbox/blob/main/docs/browser-helper.md">Payment behavior and limits ↗</a></article>
+            <article><span class="card-num">SMS AI / OBSERVATION ONLY</span><h3>Understand messages.<br />Compare before acting.</h3><p>Optional AI predicts message type and code beside the existing parser. It sends whole SMS text to OpenAI and keeps comparison totals in the bridge. It never selects a fill code. Enabled on the maintainer pilot; off by default for new installs.</p><a href="https://github.com/bnishit/otp-inbox/blob/main/docs/sms-observation.md">AI data flow and limits ↗</a></article>
+            <article><span class="card-num">MESSAGE ACTIONS / ROADMAP</span><h3>A receipt today.<br />A useful next step tomorrow.</h3><p>Receipt categories, transaction lookup and named message rules are the next direction. They are not shipped actions. A URL in a message is never permission to open it or run an automation.</p><a href="https://github.com/bnishit/otp-inbox/blob/main/docs/product-direction.md">See the product direction ↗</a></article>
           </div>
         </section>
         <section class="setup section" id="setup">
@@ -163,7 +163,7 @@
             </p>
             <a
               class="quiet"
-              href="https://github.com/bnishit/otp-inbox/blob/feat/automatic-site-fill/docs/deploy.md"
+              href="https://github.com/bnishit/otp-inbox/blob/main/docs/deploy.md"
               >Read the full deployment guide ↗</a
             >
           </div>
@@ -180,7 +180,7 @@
                 <!-- setup-prompt:start --><textarea id="setup-prompt" aria-label="Full agent setup prompt" readonly spellcheck="false">Set up OTP Inbox end to end for me from https://github.com/bnishit/otp-inbox.
 Do the work, not just explain the steps. I will handle the phone taps.
 
-1. Use the feat/automatic-site-fill pilot branch, or reuse my existing checkout.
+1. Clone the main branch, or update my existing checkout safely.
    Read README.md, SECURITY.md,
    docs/deploy.md and the relevant capture/agent guides before making changes.
    Reuse existing deployment/config when present; preserve keys and unrelated
@@ -244,7 +244,7 @@ what is working, what was actually tested, what remains, and how to revoke it.</
               <div class="terminal-head">
                 <span>OR START MANUALLY</span><span>macOS / Linux</span>
               </div>
-              <pre><code>git clone --branch feat/automatic-site-fill https://github.com/bnishit/otp-inbox.git
+              <pre><code>git clone https://github.com/bnishit/otp-inbox.git
 cd otp-inbox
 python3 scripts/setup.py \
   --url http://127.0.0.1:8787
@@ -305,7 +305,7 @@ bun --env-file=.local/server.env run server.ts</code></pre>
           </div>
           <a
             class="quiet"
-            href="https://github.com/bnishit/otp-inbox/blob/feat/automatic-site-fill/SECURITY.md"
+            href="https://github.com/bnishit/otp-inbox/blob/main/SECURITY.md"
             >Read the security model and limits ↗</a
           >
         </section>
@@ -322,7 +322,7 @@ bun --env-file=.local/server.env run server.ts</code></pre>
         <a class="brand" href="/">Made by Nishit Bhatt ↗</a>
         <div>
           <a href="https://github.com/bnishit/otp-inbox">Source</a
-          ><a href="https://github.com/bnishit/otp-inbox/blob/feat/automatic-site-fill/LICENSE"
+          ><a href="https://github.com/bnishit/otp-inbox/blob/main/LICENSE"
             >MIT license</a
           ><a href="privacy/">Maintainer instance privacy</a>
         </div>
