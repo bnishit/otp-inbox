@@ -212,3 +212,20 @@ test('ICICI-style payment wording does not mistake the confidentiality warning f
  expect(parseOtp('Microsoft security code: ABCDEF')?.code).toBe('ABCDEF');
  expect(parseOtp('OTP: 123456 and 654321. OTPs are CONFIDENTIAL.')?.code).toBeNull();
 });
+
+test('bank SMS with masked cards and SECRET or CONFIDENTIAL warnings yields one code',()=>{
+ for(const warning of ['SECRET','CONFIDENTIAL'])for(const card of ['XX1111','xx2222','****3333','ending 4444']){
+  const message=`246810 is One-Time Password for INR 1212.50 transaction towards AMAZON using ICICI Bank Credit Card ${card}. OTPs are ${warning}. DO NOT disclose`;
+  const parsed=parseOtp(message);expect(parsed?.code).toBe('246810');expect(parsed?.candidateCount).toBe(1);expect(parsed?.preview).not.toContain('246810');
+ }
+ // A word can still be a letter-only OTP when assigned as the code, outside a warning phrase.
+ expect(parseOtp('Microsoft security code: SECRET')?.code).toBe('SECRET');
+ expect(parseOtp('Microsoft security code: CONFIDENTIAL')?.code).toBe('CONFIDENTIAL');
+ expect(parseOtp('OTP: 246810 and 135790. OTPs are SECRET.')?.code).toBeNull();
+});
+test('masked-card bank SMS survives ingest, redacted lookup and exact claim without review',async()=>{
+ const f=fixture();const delivered=await f.sms('246810 is One-Time Password for INR 1212.50 transaction towards AMAZON using ICICI Bank Credit Card XX1111. OTPs are SECRET. DO NOT disclose');
+ expect(delivered.body.status).toBe('available');const found=(await f.post('recent',{service:'icici',channel:'sms',since:new Date(f.now()).toISOString()})).body;
+ expect(found.items).toHaveLength(1);expect(found.items[0].candidate_count).toBe(1);expect(JSON.stringify(found)).not.toContain('246810');
+ expect((await f.post('claim',{id:found.items[0].id,service:'icici'})).body.code).toBe('246810');
+});
