@@ -41,12 +41,19 @@ if __name__=='__main__':
       const mixed=await page.evaluate(({source})=>(0,eval)('('+source+')')('AB12CD',location.origin),{source:fill.toString()});
       if(mixed.ok || await page.locator('input').inputValue()!=='')throw Error('Mixed code was written into a numeric field');
       results.push({name:'mixed code in numeric field',passed:true});
-      for(const [name,title,ok] of [['ready login probe','OTP Verification',true],['unmarked context probe','Search',false],['payment probe','OTP Verification - Confirm payment',false]]){
+      for(const [name,title,ok] of [['ready login probe','OTP Verification',true],['unmarked context probe','Search',false],['payment probe','OTP Verification - Confirm payment',false],['card authentication probe','OTP Authentication - Authenticate the transaction - Merchant Name',false]]){
         await page.setContent('<h1>'+title+'</h1><input autocomplete="one-time-code">');
         const result=await page.evaluate(({source})=>(0,eval)('('+source+')')(null,location.origin),{source:fill.toString()});
         if(result.ok!==ok || await page.locator('input').inputValue()!=='')throw Error('Probe regression: '+name);
         results.push({name,passed:true});
       }
+      await page.setContent('<h1>Login</h1><input autocomplete="one-time-code" value="123">');
+      const existing=await page.evaluate(({source})=>(0,eval)('('+source+')')(null,location.origin),{source:fill.toString()});
+      if(existing.ok || await page.locator('input').inputValue()!=='123')throw Error('Existing value was overwritten');
+      await page.setContent('<h1>Login - Confirm transaction</h1><input autocomplete="one-time-code">');
+      const latePayment=await page.evaluate(({source})=>(0,eval)('('+source+')')('246810',location.origin,true),{source:fill.toString()});
+      if(latePayment.ok || await page.locator('input').inputValue()!=='')throw Error('Payment context was not rechecked before write');
+      results.push({name:'existing value preserved and payment context rechecked at write',passed:true});
       return {scope:'actual function in real Chromium; synthetic DOMs; not live login',results};
     }'''.replace('FUNCTION',function).replace('CASES',json.dumps(cases))
     try:
@@ -59,6 +66,6 @@ if __name__=='__main__':
         # CLI prints source as well. Retain the result only, which contains no secrets.
         output=result.stdout.split('### Result\n',1)[-1].split('### Ran Playwright code',1)[0].strip()
         parsed=json.loads(output)
-        if len(parsed.get('results',[])) != len(cases)+5 or not all(result.get('passed') for result in parsed['results']):raise RuntimeError('Browser regressions failed')
+        if len(parsed.get('results',[])) != len(cases)+7 or not all(result.get('passed') for result in parsed['results']):raise RuntimeError('Browser regressions failed')
         print(output)
     finally:subprocess.run(cli+['close'],cwd=ROOT,capture_output=True)

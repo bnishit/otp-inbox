@@ -4,7 +4,7 @@ The starting user is at a desktop login while the proof arrives on their phone o
 
 ## Product choice
 
-Use the existing short-lived inbox and claim path for all clients, including the Chrome helper. This keeps one expiry rule and one owner for each secret. The browser shows captured login items automatically, with a badge and optional alerts. Owners can enable automatic login filling per site with a matching service/channel/account. Those sites receive a fresh matching code in the selected tab without a per-login click. Other sites retain explicit filling. It does not inspect every page or open sign-in links automatically.
+Use the existing short-lived inbox and claim path for all clients, including the Chrome helper. This keeps one expiry rule and one owner for each secret. The browser shows captured login items automatically, with a badge and optional alerts. Owners can enable automatic login filling across HTTPS websites with one Chrome permission. The selected login page gets one fresh domain-matched SMS or email code without a per-site setup or per-login click. Site exceptions can narrow service/channel/account or turn filling off. Payment, recovery, ambiguous messages, unmatched brands and embedded frames stay manual. Sign-in links are not opened automatically.
 
 The main trap is treating every message as an instruction. A message may contain a link to a transaction, an amount, a phishing request, a password reset or a code that approves a payment. The same action button must not mean both “sign me in” and “approve this charge.” Sender names, page text and message content cannot grant permission.
 

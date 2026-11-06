@@ -48,7 +48,7 @@ chrome.runtime.onInstalled.addListener(()=>{chrome.sidePanel.setPanelBehavior({o
 chrome.runtime.onStartup.addListener(()=>{startInbox();registerAutomaticSites().catch(()=>{});});
 chrome.alarms.onAlarm.addListener(event=>{if(event.name===alarm)updateInbox();});
 chrome.storage.onChanged.addListener(async(changes,area)=>{
-  if(area==='local'&&changes.autoFillSites)registerAutomaticSites().catch(()=>{});
+  if(area==='local'&&(changes.autoFillSites||changes.autoFillEverywhere||changes.connection))registerAutomaticSites().catch(()=>{});
   if(area!=='local'||!changes.connection)return;
   await (await connectionStore()).remove('arrivalState');
   await startInbox();

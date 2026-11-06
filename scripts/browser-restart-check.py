@@ -7,7 +7,7 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 
 def main():
- p=argparse.ArgumentParser();p.add_argument('--chromium',required=True);p.add_argument('--screenshot');p.add_argument('--auto-screenshot');args=p.parse_args()
+ p=argparse.ArgumentParser();p.add_argument('--chromium',required=True);p.add_argument('--screenshot');p.add_argument('--auto-screenshot');p.add_argument('--global-screenshot');args=p.parse_args()
  items=[];requests=[]
  class Inbox(BaseHTTPRequestHandler):
   def log_message(self,*args):pass
@@ -24,7 +24,7 @@ def main():
   return result.stdout
  with tempfile.TemporaryDirectory() as folder:
   folder=Path(folder);extension=folder/'extension';shutil.copytree(ROOT/'extension',extension)
-  manifest=json.loads((extension/'manifest.json').read_text());manifest['host_permissions']=['http://127.0.0.1/*'];(extension/'manifest.json').write_text(json.dumps(manifest))
+  manifest=json.loads((extension/'manifest.json').read_text());manifest['host_permissions']=['http://127.0.0.1/*','https://*/*'];(extension/'manifest.json').write_text(json.dumps(manifest))
   config=folder/'config.json';config.write_text(json.dumps({'browser':{'browserName':'chromium','launchOptions':{'executablePath':args.chromium,'headless':True,'args':['--disable-extensions-except='+str(extension),'--load-extension='+str(extension)],'ignoreDefaultArgs':['--disable-extensions']}}}))
   def open_browser():run('open','about:blank','--persistent','--profile',str(folder/'profile'),'--config',str(config))
   def execute(code):
@@ -40,11 +40,17 @@ def main():
    origin='http://127.0.0.1:'+str(server.server_port)
    execute("""async page=>{const worker=page.context().serviceWorkers()[0];await worker.evaluate(async(origin)=>{await chrome.storage.local.set({connection:{origin,token:'synthetic-browser-reader-key-for-restart'},autoFillSites:{[origin]:{service:'Example login',channel:'sms',account:null}}});for(let i=0;i<40;i++){if((await chrome.scripting.getRegisteredContentScripts()).length)return;await new Promise(r=>setTimeout(r,100));}throw Error('Content script was not registered');},'ORIGIN');await page.goto('ORIGIN/test-login');if(await page.locator('input').first().inputValue()!=='')throw Error('Unexpected early fill');return {loginReady:true};}""".replace('ORIGIN',origin))
    fresh=datetime.now(timezone.utc);items[:]=[{'id':'fresh-auto-sms','secret_type':'code','channel':'sms','account':None,'service_hint':'Example login','status':'available','received_at':fresh.isoformat(),'expires_at':(fresh+timedelta(seconds=120)).isoformat()}]
-   execute("""async page=>{await page.waitForFunction(()=>[...document.querySelectorAll('input')].map(input=>input.value).join('')==='2468',{timeout:15000});const worker=page.context().serviceWorkers()[0];const status=await worker.evaluate(async()=>(await chrome.storage.session.get('automaticFillStatus')).automaticFillStatus);if(status?.status!=='filled')throw Error('Fill receipt missing');AUTO_SCREENSHOT const id=worker.url().split('/')[2];await page.goto('chrome-extension://'+id+'/panel.html');await page.getByRole('button',{name:'Disconnect bridge',exact:true}).click();return {automaticallyFilled:true};}""".replace('AUTO_SCREENSHOT',('await page.screenshot({path:'+json.dumps(args.auto_screenshot)+'});') if args.auto_screenshot else ''))
+   execute("""async page=>{await page.waitForFunction(()=>[...document.querySelectorAll('input')].map(input=>input.value).join('')==='2468',{timeout:15000});const worker=page.context().serviceWorkers()[0];const status=await worker.evaluate(async()=>(await chrome.storage.session.get('automaticFillStatus')).automaticFillStatus);if(status?.status!=='filled')throw Error('Fill receipt missing');AUTO_SCREENSHOT return {automaticallyFilled:true};}""".replace('AUTO_SCREENSHOT',('await page.screenshot({path:'+json.dumps(args.auto_screenshot)+'});') if args.auto_screenshot else ''))
    if requests.count('/v1/claim')!=1:raise RuntimeError('Automatic fill did not make exactly one claim')
+   execute('''async page=>{const worker=page.context().serviceWorkers()[0];const id=worker.url().split('/')[2];await page.goto('chrome-extension://'+id+'/panel.html');await page.getByRole('button',{name:'Turn on automatic login filling everywhere',exact:true}).click();await page.getByRole('button',{name:'Turn off automatic login filling everywhere',exact:true}).waitFor();for(let i=0;i<40;i++){if(await worker.evaluate(async()=>(await chrome.scripting.getRegisteredContentScripts()).some(s=>s.id==='otp-auto-all')))return {globalEnabled:true};await new Promise(r=>setTimeout(r,100));}throw Error('Global registration missing');}''')
+   run('close');open_browser()
+   execute('''async page=>{await page.route('https://login.example.com/**',route=>route.fulfill({contentType:'text/html',body:'<h1>Sign in</h1><input autocomplete="one-time-code">'}));await page.goto('https://login.example.com/');return {newSiteReady:true};}''')
+   fresh=datetime.now(timezone.utc);items[:]=[{'id':'global-sms','secret_type':'code','channel':'sms','account':None,'service_hint':'example','status':'available','received_at':fresh.isoformat(),'expires_at':(fresh+timedelta(seconds=120)).isoformat()}]
+   execute('''async page=>{await page.waitForFunction(()=>document.querySelector('input').value==='2468',{timeout:15000});const worker=page.context().serviceWorkers()[0];GLOBAL_SCREENSHOT const settings=await worker.evaluate(async()=>chrome.storage.local.get(['autoFillEverywhere','autoFillSites']));if(!settings.autoFillEverywhere||settings.autoFillSites['https://login.example.com'])throw Error('Global mode required a site rule');const id=worker.url().split('/')[2];await page.goto('chrome-extension://'+id+'/panel.html');await page.getByRole('button',{name:'Disconnect bridge',exact:true}).click();return {newSiteFilledAfterRestartWithoutSetup:true};}'''.replace('GLOBAL_SCREENSHOT',('await page.screenshot({path:'+json.dumps(args.global_screenshot)+'});') if args.global_screenshot else ''))
+   if requests.count('/v1/claim')!=2:raise RuntimeError('Global fill did not make exactly one additional claim')
    run('close');open_browser()
    execute('''async page=>{const ctx=page.context();const worker=ctx.serviceWorkers()[0]||await ctx.waitForEvent('serviceworker');const result=await worker.evaluate(async()=>({connection:(await chrome.storage.local.get('connection')).connection,arrivalState:(await chrome.storage.local.get('arrivalState')).arrivalState}));if(result.connection||result.arrivalState)throw Error('Disconnect did not persist');return {disconnectSurvivesRestart:true};}''')
-   print(json.dumps({'scope':'real extension in isolated Chrome for Testing; synthetic local inbox; extra localhost host permission in test manifest','connectionSurvivesRestart':True,'smsArrivesWithPanelClosed':True,'badge':'1','copyActionAvailable':True,'disconnectSurvivesRestart':True,'noClaimsBeforeSiteEnabled':True,'automaticFillWithoutWatchOrClick':True,'exactlyOneAutomaticClaim':True}))
+   print(json.dumps({'scope':'real extension in isolated Chrome for Testing; synthetic local inbox; test-only localhost and HTTPS host permissions','connectionSurvivesRestart':True,'smsArrivesWithPanelClosed':True,'badge':'1','copyActionAvailable':True,'disconnectSurvivesRestart':True,'noClaimsBeforeSiteEnabled':True,'automaticFillWithoutWatchOrClick':True,'exactlyOneClaimPerLogin':True,'globalModeSurvivesRestart':True,'newSiteFillsWithoutSiteSetup':True}))
   finally:
    subprocess.run(cli+['close'],cwd=ROOT,capture_output=True);server.shutdown()
 if __name__=='__main__':main()

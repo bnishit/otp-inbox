@@ -6,6 +6,7 @@ export function inboxItems(items, now = Date.now()) {
   ).slice(0,100).map(item => ({
     id:item.id,secret_type:item.secret_type,channel:item.channel,account:item.account,
     service_hint:item.service_hint,sender:typeof item.sender==='string'?item.sender.slice(0,160):null,
+    purpose:/payment|transaction|merchant|purchase|withdraw|bank transfer/i.test(item.preview||'')?'payment':'verification',
     link_origin:item.link_origin,review_reason:item.review_reason,status:item.status,
     received_at:item.received_at,expires_at:item.expires_at
   }));
