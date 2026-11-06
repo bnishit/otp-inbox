@@ -18,3 +18,8 @@ test('codes are not selected by recency; duplicate service/account requires narr
  expect(isAmbiguous(first,[first,item('two',{account:'other@example.test'})])).toBe(false);
  expect(isAmbiguous(first,[first,item('two',{service_hint:'Google'})])).toBe(false);
 });
+
+test('payment metadata is labelled without caching the underlying message or code',()=>{
+ const result=inboxItems([item('payment',{preview:'OTP to authenticate transaction at merchant',code:'246810'})],now)[0];
+ expect(result.purpose).toBe('payment');expect(result.preview).toBeUndefined();expect(result.code).toBeUndefined();
+});

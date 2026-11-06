@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "OTP Bridge \u2014 Login helper",
-  "version": "0.4.0",
+  "version": "0.6.1",
   "minimum_chrome_version": "124",
-  "description": "New phone codes and email sign-in links appear automatically. Copy, fill or open only when you choose.",
+  "description": "New phone codes and email sign-in links appear automatically. Automatic login filling across websites with one permission.",
   "permissions": [
     "activeTab",
     "scripting",

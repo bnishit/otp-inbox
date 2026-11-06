@@ -15,7 +15,7 @@ picker.addEventListener("submit", (event) => {
   event.preventDefault();
   if (Object.hasOwn(notes, source.value))
     window.location.href =
-      "https://github.com/bnishit/otp-inbox/blob/main/docs/" +
+      "https://github.com/bnishit/otp-inbox/blob/feat/automatic-site-fill/docs/" +
       source.value +
       ".md";
 });

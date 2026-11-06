@@ -1,4 +1,5 @@
 import { timingSafeEqual, createHash } from 'node:crypto';
+import {createSmsShadow,type SmsShadow} from './sms-shadow';
 import {createMcp} from './mcp';
 import {createGmailPush} from './email/gmail-push';
 import {withoutUrls, parseLoginLink, emailAddress, validateLinkRules, type LoginLinkRule} from './login';
@@ -19,11 +20,14 @@ export function parseOtp(message: string, sender = '') {
   const bare = /^[A-Z0-9-]{4,12}$/i.test(text.trim()) && /\d/.test(text);
   if (!labels.length && !bare) return null;
   if (/\b(?:promo|discount|coupon|tracking|referral|order) code\b/i.test(text) && !/\b(?:otp|one[ -]?time|verification|authentication|security code)\b/i.test(text)) return null;
+  // Explicit card suffixes, currency amounts, references and bank warning phrases are not codes.
+  const details = [...text.matchAll(/\bOTPs\s+are\s+(?:SECRET|CONFIDENTIAL)\b|\b(?:card|account|a\/c)(?:\s+(?:number|no\.?|ending|ends|in|with|xx+)|[ *xX:-]){0,8}\s*\d{4}\b|(?:\bINR\b|\bRs\.?|₹|\bUSD\b|\$)\s*[\d,]+(?:\.\d+)?|\b(?:ref(?:erence)?|txn|transaction)\s*(?:id|no\.?|number)\s*[:#-]?\s*[A-Z0-9-]+/ig)];
   const tokens = [...text.matchAll(/\b[A-Z0-9]{4,12}(?:-[A-Z0-9]{3,6})?\b/ig)]
     .filter(m => (/\d/.test(m[0]) || (/^[A-Z]{4,12}$/.test(m[0]) && !BRAND.test(m[0]) && !/^(YOUR|THIS|THAT|VALID|NEVER|SHARE|WITH|ANYONE|PLEASE|ENTER|ONLY|MINUTES|SECONDS|PASSWORD|SECURITY|CONFIRM|REQUEST|RECEIVED|IGNORE|LOGIN|RESET|FROM)$/.test(m[0]))) &&
       (!/^\d+$/.test(m[0]) || m[0].length <= 8) && !labels.some(label => m.index! >= label.index! && m.index! < label.index! + label[0].length));
+  const candidates = tokens.filter(token => !details.some(detail => token.index! >= detail.index! && token.index! < detail.index! + detail[0].length));
   // More than one plausible token is retained for review, never resolved by recency or guesswork.
-  const codes = [...new Set(tokens.map(m => m[0]))];
+  const codes = [...new Set(candidates.map(m => m[0]))];
   const serviceHint = (text.match(BRAND)?.[1] || sender.match(BRAND)?.[1] || null)?.toLowerCase() || null;
   const validity = text.match(/(?:valid|expires?|expiry)[^\d]{0,20}(\d{1,3})\s*(seconds?|secs?|minutes?|mins?)\b/i);
   const validFor = validity ? Number(validity[1]) * (/^s/i.test(validity[2]) ? 1000 : 60_000) : RETENTION;
@@ -37,7 +41,7 @@ type Entry = { capture_method: 'iphone' | 'android' | 'email_poll' | 'gmail_push
   candidateCount: number; confidence: string; preview: string; received: number; expires: number; claimedBy?: string;
   mailbox: string | null; link: string | null; linkOrigin: string | null; reviewReason: string | null; kind: 'code' | 'link' };
 
-export function createBridge(ingestKey: string, clients: Record<string, string>, now = Date.now, emailSources: Record<string, EmailSource> = {}, linkRules: LoginLinkRule[] = []) {
+export function createBridge(ingestKey: string, clients: Record<string, string>, now = Date.now, emailSources: Record<string, EmailSource> = {}, linkRules: LoginLinkRule[] = [], smsShadow?:SmsShadow) {
   validateLinkRules(linkRules);
   for (const source of Object.values(emailSources)) {
     if (source.aliases !== undefined && (!Array.isArray(source.aliases) || source.aliases.length > 30 || source.aliases.some(alias => !emailAddress(alias)))) throw Error('Invalid recipient aliases');
@@ -78,6 +82,7 @@ export function createBridge(ingestKey: string, clients: Record<string, string>,
       if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error();
     } catch { return reply({ error: 'invalid_json' }, 400); }
     cleanup();
+    if (path === '/v1/observation') return reply(smsShadow?.snapshot()||{enabled:false,mode:'observe_only'});
     if (path === '/v1/source-heartbeat') {
       const checked = Date.parse(String(data.checked_at));
       if (!Number.isFinite(checked) || Math.abs(checked - now()) > 60_000 || !['ok', 'error'].includes(String(data.status))) return reply({ error: 'invalid_heartbeat' }, 400);
@@ -103,6 +108,7 @@ export function createBridge(ingestKey: string, clients: Record<string, string>,
         if (![source.email, ...(source.aliases || [])].some(address => address.toLowerCase() === account)) return reject('recipient_not_approved');
       }
       const parsed = parseOtp(data.message, sender);
+      if(channel==='sms'){try{smsShadow?.observe(data.message,parsed?.code??null);}catch{}}
       const login = channel === 'email' ? parseLoginLink(data.message, sender, data.authenticated_domain, linkRules) : null;
       if (!parsed && !login) return reject('not_recognized_as_otp');
       const mixed = !!login && !!parsed?.candidateCount;
@@ -184,7 +190,8 @@ if (import.meta.main) {
   const clients = JSON.parse(Bun.env.OTP_CLIENT_TOKENS || '{}');
   if (ingestKey.length < 32 || !Object.keys(clients).length || Object.values(clients).some(key => typeof key !== 'string' || key.length < 32)) throw new Error('OTP credentials are missing');
   const emailSources = JSON.parse(Bun.env.OTP_EMAIL_SOURCES || '{}');
-  const bridge = createBridge(ingestKey, clients, Date.now, emailSources, validateLinkRules(JSON.parse(Bun.env.OTP_LOGIN_LINK_RULES || '[]')));
+  const shadow=createSmsShadow({enabled:Bun.env.OTP_AI_SHADOW==='true',key:Bun.env.OTP_AI_OPENAI_KEY||''});
+  const bridge = createBridge(ingestKey, clients, Date.now, emailSources, validateLinkRules(JSON.parse(Bun.env.OTP_LOGIN_LINK_RULES || '[]')),shadow);
   const mcp = createMcp(bridge, clients);
   const push = Bun.env.GMAIL_PUSH_CONFIG ? createGmailPush(JSON.parse(Bun.env.GMAIL_PUSH_CONFIG),emailSources,bridge) : null;
   if (push) await push.start();

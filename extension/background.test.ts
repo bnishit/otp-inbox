@@ -13,7 +13,7 @@ function fixture(initial:any={}) {
  const code=readFileSync(new URL('./background.js',import.meta.url),'utf8').replace(/^import .*;\n/gm,'');
  const connectionSource=readFileSync(new URL('./core.js',import.meta.url),'utf8').split('export async function connectionStore',2)[1].split('export function bridgeOrigin',1)[0];
  const connectionStore=new Function('chrome','return async function connectionStore'+connectionSource)(chrome);
- const worker=new Function('chrome','fetch','bridgeOrigin','inboxItems','arrivals','connectionStore',code+'\nreturn {updateInbox,startInbox};')(chrome,network,bridgeOrigin,inboxItems,arrivals,connectionStore);
+ const worker=new Function('chrome','fetch','bridgeOrigin','inboxItems','arrivals','connectionStore','automaticFill','registerAutomaticSites',code+'\nreturn {updateInbox,startInbox};')(chrome,network,bridgeOrigin,inboxItems,arrivals,connectionStore,async()=>{},async()=>{});
  return {worker,state,session,events,calls,chrome,setItems:(v:any[])=>items=v,fail:()=>fail=true,hook:(fn:any)=>networkHook=fn};
 }
 const item=(id:string)=>({id,status:'available',secret_type:'link',channel:'email',account:'owner@example.test',service_hint:'Afterspan',received_at:new Date().toISOString(),expires_at:new Date(Date.now()+60000).toISOString(),link:'https://example.test/#privatevalueforsyntheticcheck',code:'privatevalueforsyntheticcheck',preview:'privatevalueforsyntheticcheck'});
