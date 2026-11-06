@@ -3,7 +3,7 @@ import {automaticRule} from './auto-fill.js';
 import {inboxItems,isAmbiguous} from './inbox.js';
 const $=id=>document.getElementById(id);
 const store=await connectionStore();
-let connection=null,target=null,since=0,busy=false;
+let connection=null,target=null,since=0,busy=false,paymentModeLoaded=false;
 const say=text=>{$('status').textContent=text;};
 const element=(tag,text,className)=>{const el=document.createElement(tag);el.textContent=text;if(className)el.className=className;return el;};
 function showConnection() {document.body.classList.toggle('connected',!!connection);$('setup').hidden=!!connection;$('login').hidden=!connection;}
@@ -49,10 +49,12 @@ async function useItem(item,action) {
 }
 async function renderInbox() {
   const {inbox,automaticFillStatus}=await chrome.storage.session.get(['inbox','automaticFillStatus']);
-  const settings=await store.get(['autoFillSites','autoFillEverywhere']);
+  const settings=await store.get(['autoFillSites','autoFillEverywhere','paymentAutomation']);
+  if(!paymentModeLoaded){$('payment-mode').value=settings.paymentAutomation||'';paymentModeLoaded=true;}
+  $('payment-state').textContent=settings.paymentAutomation==='submit'?'On: matching payment codes fill and submit automatically.':settings.paymentAutomation==='fill'?'On: matching payment codes fill automatically; the bank may continue on fill.':'Off: payment codes stay manual.';
   const autoRule=target?.origin?automaticRule(target.origin,settings):null;
   $('enable-everywhere').textContent=settings.autoFillEverywhere?'Turn off automatic login filling everywhere':'Turn on automatic login filling everywhere';
-  $('everywhere-state').textContent=settings.autoFillEverywhere?'On for supported HTTPS login pages. No per-site setup. Unclear codes, payments, recovery and embedded frames stay manual.':'One Chrome permission lets login filling work across websites. Your email and SMS inbox permissions stay the same.';
+  $('everywhere-state').textContent=settings.autoFillEverywhere?'On for supported HTTPS login pages. No per-site setup. Unclear codes, recovery and embedded frames stay manual. Payments use your saved choice.':'One Chrome permission lets login filling work across websites. Your email and SMS inbox permissions stay the same.';
   $('auto-state').textContent=autoRule?'Automatic login filling is on here for '+autoRule.service+'.'+(automaticFillStatus?.origin===target?.origin&&automaticFillStatus.status==='filled'?' Last code filled automatically at '+new Date(automaticFillStatus.at).toLocaleTimeString()+'.':''):'Automatic fill is off on this site.';
   const all=inboxItems(inbox?.items),service=$('service').value.trim().toLowerCase(),account=$('account').value.trim().toLowerCase();
   const items=all.filter(item=>Date.parse(item.received_at)>=since && (!account||item.account?.toLowerCase()===account) &&
@@ -60,9 +62,9 @@ async function renderInbox() {
   $('results').replaceChildren();
   for(const item of items) {
     const card=element('article','', 'card');
-    card.append(element('p',item.status==='needs_review'?'NEEDS REVIEW':'READY WHEN YOU ARE','eyebrow'),element('h3',item.service_hint||item.sender||(item.channel==='sms'?'Phone login':'Email login')),element('p',item.secret_type==='link'?'Sign-in link':item.purpose==='payment'?'Payment verification — manual':'Verification code'),element('p',item.account||'Phone SMS'),element('p','Received '+new Date(item.received_at).toLocaleTimeString()),element('p','Expires '+new Date(item.expires_at).toLocaleTimeString()));
+    card.append(element('p',item.status==='needs_review'?'NEEDS REVIEW':'READY WHEN YOU ARE','eyebrow'),element('h3',item.service_hint||item.sender||(item.channel==='sms'?'Phone login':'Email login')),element('p',item.secret_type==='link'?'Sign-in link':item.purpose==='payment'?'Payment verification':'Verification code'),element('p',item.account||'Phone SMS'),element('p','Received '+new Date(item.received_at).toLocaleTimeString()),element('p','Expires '+new Date(item.expires_at).toLocaleTimeString()));
     const add=(label,action,secondary=false)=>{const button=element('button',label,secondary?'secondary':'');button.disabled=busy;button.onclick=()=>useItem(item,action);card.append(button);};
-    if(item.status==='needs_review')card.append(element('p',item.purpose==='payment'?'This payment message has no single clear code. Check the bank message; payment approval stays manual.':'No single clear code was found. Check the original message.'));
+    if(item.status==='needs_review')card.append(element('p',item.purpose==='payment'?'This payment message has no single clear code. Check the bank message; the helper will not guess a code.':'No single clear code was found. Check the original message.'));
     else if(isAmbiguous(item,all.filter(other=>Date.parse(other.received_at)>=since)))card.append(element('p','More than one login matches this service and account. Show only arrivals from now, then request a fresh login. We will not pick the newest.'));
     else if(item.secret_type==='link') {card.append(element('p','Destination: '+(item.link_origin||'Unverified')));if(item.link_origin)add('Open sign-in link ↗','open');}
     else {if(target?.origin)add('Fill code on '+new URL(target.origin).hostname,'fill');add('Copy code','copy',!!target?.origin);}
@@ -85,6 +87,7 @@ $('connect-form').onsubmit=async event=>{
     await store.set({connection});$('token').value='';showConnection();say('Connected. This Chrome profile will stay connected after restart.');await refresh();
   }catch(error){say(error instanceof UserMessage?error.message:'Could not connect. Check the bridge address and browser key.');}
 };
+$('save-payment').onclick=async()=>{await store.set({paymentAutomation:$('payment-mode').value||null});await renderInbox();say('Payment behavior saved. It survives restarts.');};
 $('enable-everywhere').onclick=async()=>{try{
   const {autoFillEverywhere}=await store.get('autoFillEverywhere');
   if(!autoFillEverywhere&&!await chrome.permissions.request({origins:['https://*/*']}))throw new UserMessage('Website access was not granted. Existing site settings still work.');
@@ -108,7 +111,7 @@ $('notify').onclick=async()=>{try{say(await chrome.permissions.request({permissi
 $('service').oninput=()=>renderInbox();$('account').oninput=()=>renderInbox();
 $('new-only').onclick=()=>{since=Date.now();say('Showing only new arrivals. Request a fresh login now.');renderInbox();};
 $('all-recent').onclick=()=>{since=0;renderInbox();};
-$('disconnect').onclick=async()=>{const origin=connection?.origin,{autoFillSites={}}=await store.get('autoFillSites');connection=null;$('results').replaceChildren();await store.remove(['connection','arrivalState','autoFillSites','autoFillEverywhere']);const origins=[...new Set([...Object.keys(autoFillSites),...(origin?[origin]:[]),'https://*'])].map(value=>value+'/*');if(origins.length)await chrome.permissions.remove({origins});showConnection();say('Disconnected. Automatic checks have stopped.');};
+$('disconnect').onclick=async()=>{const origin=connection?.origin,{autoFillSites={}}=await store.get('autoFillSites');connection=null;$('results').replaceChildren();await store.remove(['connection','arrivalState','autoFillSites','autoFillEverywhere','paymentAutomation']);const origins=[...new Set([...Object.keys(autoFillSites),...(origin?[origin]:[]),'https://*'])].map(value=>value+'/*');if(origins.length)await chrome.permissions.remove({origins});showConnection();say('Disconnected. Automatic checks have stopped.');};
 function updateTarget(next){target=next;if(next?.origin&&new URL(next.origin).hostname==='blinkit.com')$('auto-service').value='Blinkit';$('target').textContent=next?.origin?new URL(next.origin).hostname:'Open on a login page to fill, or copy a code from here';if(connection)renderInbox();}
 $('use-page').onclick=async()=>{try{const [tab]=await chrome.tabs.query({active:true,currentWindow:true});const result=await chrome.scripting.executeScript({target:{tabId:tab.id},func:()=>location.origin});const origin=bridgeOrigin(result[0]?.result);const next={tabId:tab.id,origin};updateTarget(next);await chrome.storage.session.set({target:next});}catch{say('Open the bridge icon on the login page to grant access. Copy and Open still work here.');}};
 const saved=await chrome.storage.session.get('target');const remembered=await store.get('connection');connection=remembered.connection||null;showConnection();updateTarget(saved.target);if(connection)await refresh();

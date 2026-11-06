@@ -19,11 +19,14 @@ export function parseOtp(message: string, sender = '') {
   const bare = /^[A-Z0-9-]{4,12}$/i.test(text.trim()) && /\d/.test(text);
   if (!labels.length && !bare) return null;
   if (/\b(?:promo|discount|coupon|tracking|referral|order) code\b/i.test(text) && !/\b(?:otp|one[ -]?time|verification|authentication|security code)\b/i.test(text)) return null;
+  // Explicit card suffixes, currency amounts and reference IDs are not OTP candidates.
+  const details = [...text.matchAll(/\b(?:card|account|a\/c)(?:\s+(?:number|no\.?|ending|ends|in|with|xx+)|[ *xX:-]){0,8}\s*\d{4}\b|(?:\bINR\b|\bRs\.?|₹|\bUSD\b|\$)\s*[\d,]+(?:\.\d+)?|\b(?:ref(?:erence)?|txn|transaction)\s*(?:id|no\.?|number)\s*[:#-]?\s*[A-Z0-9-]+/ig)];
   const tokens = [...text.matchAll(/\b[A-Z0-9]{4,12}(?:-[A-Z0-9]{3,6})?\b/ig)]
     .filter(m => (/\d/.test(m[0]) || (/^[A-Z]{4,12}$/.test(m[0]) && !BRAND.test(m[0]) && !/^(YOUR|THIS|THAT|VALID|NEVER|SHARE|WITH|ANYONE|PLEASE|ENTER|ONLY|MINUTES|SECONDS|PASSWORD|SECURITY|CONFIRM|REQUEST|RECEIVED|IGNORE|LOGIN|RESET|FROM)$/.test(m[0]))) &&
       (!/^\d+$/.test(m[0]) || m[0].length <= 8) && !labels.some(label => m.index! >= label.index! && m.index! < label.index! + label[0].length));
+  const candidates = tokens.filter(token => !details.some(detail => token.index! >= detail.index! && token.index! < detail.index! + detail[0].length));
   // More than one plausible token is retained for review, never resolved by recency or guesswork.
-  const codes = [...new Set(tokens.map(m => m[0]))];
+  const codes = [...new Set(candidates.map(m => m[0]))];
   const serviceHint = (text.match(BRAND)?.[1] || sender.match(BRAND)?.[1] || null)?.toLowerCase() || null;
   const validity = text.match(/(?:valid|expires?|expiry)[^\d]{0,20}(\d{1,3})\s*(seconds?|secs?|minutes?|mins?)\b/i);
   const validFor = validity ? Number(validity[1]) * (/^s/i.test(validity[2]) ? 1000 : 60_000) : RETENTION;

@@ -16,7 +16,7 @@ function fixture(options:any={}) {
  const sender:any={id:'extension',frameId:0,documentId:'document-one',url:'https://blinkit.com/',tab:{id:1},...options.sender};
  Object.assign(state,options.settings||{});
  let active:any={id:1,url:'https://blinkit.com/'};
- const chrome:any={permissions:{contains:async(value:any)=>value.origins?options.sitePermission!==false:options.alerts!==false},notifications:{create:async(id:any,value:any)=>{if(options.notificationFailure)throw Error('unavailable');calls.push(['notification',value]);}},runtime:{id:'extension'},tabs:{query:async()=>[active]},storage:{session:{get:async()=>session,set:async(v:any)=>Object.assign(session,v)}},scripting:{executeScript:async(value:any)=>{calls.push(['script',value.args,value.target]);return [{result:{ok:options.fields!==false}}];}}};
+ const chrome:any={permissions:{contains:async(value:any)=>value.origins?options.sitePermission!==false:options.alerts!==false},notifications:{create:async(id:any,value:any)=>{if(options.notificationFailure)throw Error('unavailable');calls.push(['notification',value]);}},runtime:{id:'extension'},tabs:{query:async()=>[active]},storage:{session:{get:async()=>session,set:async(v:any)=>Object.assign(session,v)}},scripting:{executeScript:async(value:any)=>{calls.push(['script',value.args,value.target]);return [{result:{ok:options.fields!==false,payment:options.payment===true}}];}}};
  const store={get:async()=>state};
  const fetcher=async(url:string,init:any)=>{calls.push(['fetch',url,JSON.parse(init.body)]);if(url.endsWith('/v1/claim')){if(options.navigate)active={id:1,url:'https://other.example.test/'};if(options.disconnect)delete state.connection;return Response.json({...item(),code:'1357',...options.claim});}return Response.json({items:options.items||[item()]});};
  const source=readFileSync(new URL('./auto-fill.js',import.meta.url),'utf8').replace(/^import .*;\n/gm,'').replaceAll('export ','');
@@ -66,4 +66,15 @@ test('global matching handles SMS and email without per-site setup, refusing oth
 });
 test('global mode cannot claim on a disabled site or a page without clear login fields',async()=>{
  for(const options of [{settings:{autoFillEverywhere:true,autoFillSites:{'https://blinkit.com':false}}},{settings:{autoFillEverywhere:true,autoFillSites:{}},fields:false},{settings:{autoFillEverywhere:true,autoFillSites:{}},sitePermission:false}]){const f=fixture(options);await f.run();expect(f.calls.filter(c=>c[0]==='fetch')).toHaveLength(0);}
+});
+
+test('saved payment automation accepts one issuer-matched payment code and rechecks the mode',async()=>{
+ const paymentItem={...item(),service_hint:'merchant',preview:'Blinkit payment verification code [redacted]'};
+ const f=fixture({settings:{autoFillEverywhere:true,autoFillSites:{},paymentAutomation:'submit'},payment:true,items:[paymentItem]});await f.run();
+ expect(f.session.automaticFillStatus.status).toBe('filled');
+ expect(f.calls.filter(c=>c[0]==='script').at(-1)[1][2]).toEqual({payments:'submit',expectedPayment:true});
+ const global=automaticRule('https://blinkit.com',{autoFillEverywhere:true});
+ expect(automaticCandidate([paymentItem],{...global,payment:true},since)).toBeNull();
+ expect(automaticCandidate([paymentItem],{...global,payment:true,payments:'submit'},since)?.id).toBe('sms');
+ expect(automaticCandidate([{...paymentItem,preview:'Other issuer payment code'}],{...global,payment:true,payments:'submit'},since)).toBeNull();
 });

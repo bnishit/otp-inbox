@@ -54,6 +54,20 @@ if __name__=='__main__':
       const latePayment=await page.evaluate(({source})=>(0,eval)('('+source+')')('246810',location.origin,true),{source:fill.toString()});
       if(latePayment.ok || await page.locator('input').inputValue()!=='')throw Error('Payment context was not rechecked before write');
       results.push({name:'existing value preserved and payment context rechecked at write',passed:true});
+      for(const [name,mode,buttons,expectedPayment,ok,submitted] of [
+        ['payment disabled',null,'<button>Submit</button>',true,false,false],
+        ['payment prefill','fill','<button>Submit</button>',true,true,false],
+        ['payment fill and submit','submit','<button>Submit</button>',true,true,true],
+        ['two confirmation buttons','submit','<button>Submit</button><button>Confirm</button>',true,false,false],
+        ['verification purpose changed','submit','<button>Submit</button>',false,false,false]
+      ]){
+        await page.setContent('<form><h1>Authenticate transaction</h1><input type="password" name="otp">'+buttons+'</form>');
+        await page.evaluate(()=>document.querySelector('form').onsubmit=e=>{e.preventDefault();document.body.dataset.confirmed='yes'});
+        const result=await page.evaluate(({source,mode,expectedPayment})=>(0,eval)('('+source+')')('246810',location.origin,{payments:mode,expectedPayment}),{source:fill.toString(),mode,expectedPayment});
+        const state=await page.evaluate(()=>({value:document.querySelector('input').value,submitted:document.body.dataset.confirmed==='yes'}));
+        if(result.ok!==ok||state.submitted!==submitted||state.value!==(ok?'246810':''))throw Error('Payment fixture failed: '+name);
+        results.push({name,passed:true});
+      }
       return {scope:'actual function in real Chromium; synthetic DOMs; not live login',results};
     }'''.replace('FUNCTION',function).replace('CASES',json.dumps(cases))
     try:
@@ -66,6 +80,6 @@ if __name__=='__main__':
         # CLI prints source as well. Retain the result only, which contains no secrets.
         output=result.stdout.split('### Result\n',1)[-1].split('### Ran Playwright code',1)[0].strip()
         parsed=json.loads(output)
-        if len(parsed.get('results',[])) != len(cases)+7 or not all(result.get('passed') for result in parsed['results']):raise RuntimeError('Browser regressions failed')
+        if len(parsed.get('results',[])) != len(cases)+12 or not all(result.get('passed') for result in parsed['results']):raise RuntimeError('Browser regressions failed')
         print(output)
     finally:subprocess.run(cli+['close'],cwd=ROOT,capture_output=True)

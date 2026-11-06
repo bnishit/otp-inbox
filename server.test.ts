@@ -197,3 +197,11 @@ test('code plus login link stays review-only rather than choosing a secret',asyn
   const delivered=await post('email',{message:'Afterspan one-time code: 246810\nhttps://afterspan.example.test/app#sign-in=as_login_syntheticletters',sender:'signin@example.test',authenticated_domain:'example.test',message_id:'mixed',received_at:new Date(clock).toISOString()},key);
   expect(delivered.status).toBe('needs_review');expect((await post('claim',{id:delivered.id})).error).toBe('multiple_secret_types');
 });
+
+test('explicit card suffix, amount and reference are not confused with the payment OTP',()=>{
+ const message='OTP: 123456 for transaction of INR 398.05 at AMAZON on ICICI card ending 8010. Ref ID ABCD7890. Valid for 5 minutes.';
+ expect(parseOtp(message)?.code).toBe('123456');expect(parseOtp(message)?.candidateCount).toBe(1);
+ expect(parseOtp('OTP: 123456 or 654321 for transaction INR 398.05 on card ending 8010')?.code).toBeNull();
+ expect(parseOtp('Transaction INR 398.05 on card ending 8010. OTP unavailable')?.code).toBeNull();
+ expect(parseOtp(message)?.preview).not.toContain('123456');
+});

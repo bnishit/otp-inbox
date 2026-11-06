@@ -31,7 +31,9 @@ Captured SMS codes follow the same automatic inbox, badge and arrival-popup flow
 
 Enable **arrival popups** once in the helper. Chrome retains that permission across restart. Popups are OS notifications with no code, account or full link. Clicking opens the side panel, or a small helper window if Chrome refuses the side-panel gesture. Choose Copy, Fill, or Open; use the toolbar helper on the login tab for Fill. Notification creation and OS display are distinct, and OS settings can suppress display. Click **Turn on automatic login filling everywhere** once and approve Chrome’s all-HTTPS website access. The saved setting survives restarts. On a selected login page, the real website domain is matched to one fresh SMS or email code; a Public Suffix List parser handles country domains and private hosting suffixes without trusting subdomain names. Unknown brands can match their exact name in a redacted message preview. No watch, reconnect, per-site setup or Fill click is needed. Some sites continue on fill. Multiple matching messages or email accounts remain manual. Custom service/channel/account rules and per-site opt-outs remain under **Site exceptions and custom matching**.
 
-With arrival popups enabled, a secret-free “Login code filled” notification confirms a successful automatic fill. The helper also shows the last fill time. OS settings can suppress display. Global-off stops the global behavior while keeping custom rules and the granted browser permission. A site opt-out overrides global mode. Disconnect removes saved settings and all host grants, including all-HTTPS access. Website access is broader; email and SMS inbox scopes and backend permissions do not change.
+With arrival popups enabled, a secret-free “Login code filled” notification confirms a successful automatic fill. The helper also shows the last fill time. OS settings can suppress display. Under **Payment codes**, choose manual, automatic fill, or automatic fill and submit, then save once. Filling may itself approve a charge on some bank pages; submit mode also clicks one clear confirmation button in the code field’s form. Masked OTP fields are supported only in this payment mode. The issuer must match the message, and ambiguous buttons or codes are not guessed. This is a user-enabled option; live charges are not used for automated QA.
+
+Global-off stops the global behavior while keeping custom rules and the granted browser permission. A site opt-out overrides global mode. Disconnect removes saved settings and all host grants, including all-HTTPS access. Website access is broader; email and SMS inbox scopes and backend permissions do not change.
 
 ## Supported cases
 
@@ -44,7 +46,8 @@ With arrival popups enabled, a secret-free “Login code filled” notification 
 | SMS-only link or custom deep link | Unsupported; source filters may not capture it |
 | Password/search/hidden fields, unclear fields, cross-origin frames | No guessed fill; use copy/paste |
 | TOTP, passkeys, hardware keys, QR/device flows, push approval, CAPTCHA | Continue with the provider's own flow |
-| Payments, recovery or security changes | OTP access is not authorization for those actions |
+| Card-payment codes | Optional saved fill or fill-and-submit choice; one issuer-matched fresh code and one clear form button required |
+| Recovery, transfers, withdrawals or security changes | Remain manual; inbox access alone does not authorize them |
 
 ## Verification
 
@@ -54,6 +57,6 @@ Primary platform references: [Chrome alarms](https://developer.chrome.com/docs/e
 
 ### Automatic-fill limits
 
-A page interaction starts a two-minute freshness boundary internally; there is no Watch button or setup for each login. Page checks run about every three seconds on permitted sites. They require a clear marked code field, visible login wording, one matching unexpired code, and the currently selected tab. Cross-origin frames, ambiguous/review-only items, old codes, recognizable recovery/payment contexts and unmatched websites remain manual. The write is bound to the exact document so navigation cannot redirect it. These checks are conservative heuristics, not a proof of transaction meaning. Do not enable automatic filling for a workflow that authorizes payments or account security changes. Full sign-in-link auto-opening is not included. OS notification display also requires Chrome alerts enabled in macOS settings.
+A page interaction starts a two-minute freshness boundary internally; there is no Watch button or setup for each login. Page checks run about every three seconds on permitted sites. They require a clear marked code field, visible login wording, one matching unexpired code, and the currently selected tab. Cross-origin frames, ambiguous/review-only items, old codes, recognizable recovery contexts and payments without a saved payment choice and unmatched websites remain manual. The write is bound to the exact document so navigation cannot redirect it. These checks are conservative heuristics, not a proof of transaction meaning. The payment option may authorize a charge; the owner must enable that saved behavior deliberately. Account recovery, bank transfers, withdrawals and security changes remain outside this mode. Full sign-in-link auto-opening is not included. OS notification display also requires Chrome alerts enabled in macOS settings.
 
 Rebuild the bundled domain parser with `bun run scripts/build-domains.ts` after updating its pinned `tldts` dependency. Its MIT license is shipped with the extension.
