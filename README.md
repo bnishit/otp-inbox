@@ -6,7 +6,7 @@ A self-hosted bridge from SMS and Gmail to desktop login fields, approved sign-i
 
 [Project page](https://nishitbhatt.com/otp-inbox/) · [Chrome helper](docs/browser-helper.md) · [Start setup](docs/deploy.md) · [Agent connections](docs/agents.md) · [Security](SECURITY.md)
 
-This broader pilot is on `feat/automatic-site-fill` ([PR #5](https://github.com/bnishit/otp-inbox/pull/5)); it is not merged into `main` yet. Clone that branch for the features below. Each person runs their own inbox and capture setup; the public page is not a hosted inbox or Chrome Web Store listing.
+The browser and SMS observation pilot is included in `main` ([merged PR #5](https://github.com/bnishit/otp-inbox/pull/5)). Each person runs their own inbox and capture setup; the public page is not a hosted inbox or Chrome Web Store listing.
 
 | What you want | What this build does | Boundary |
 | --- | --- | --- |
@@ -37,7 +37,7 @@ Copy this whole prompt into Codex or Claude Code on your computer. The agent sho
 Set up OTP Inbox end to end for me from https://github.com/bnishit/otp-inbox.
 Do the work, not just explain the steps. I will handle the phone taps.
 
-1. Use the feat/automatic-site-fill pilot branch, or reuse my existing checkout.
+1. Clone the main branch, or update my existing checkout safely.
    Read README.md, SECURITY.md,
    docs/deploy.md and the relevant capture/agent guides before making changes.
    Reuse existing deployment/config when present; preserve keys and unrelated
@@ -104,7 +104,7 @@ Prefer manual setup? Start below, then choose your capture and agent guides.
 Requires Bun, Python 3.10+ and Git.
 
 ```sh
-git clone --branch feat/automatic-site-fill https://github.com/bnishit/otp-inbox.git
+git clone https://github.com/bnishit/otp-inbox.git
 cd otp-inbox
 python3 scripts/setup.py --url http://127.0.0.1:8787 \
   --mailbox personal=you@example.com
