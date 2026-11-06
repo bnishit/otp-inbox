@@ -205,3 +205,10 @@ test('explicit card suffix, amount and reference are not confused with the payme
  expect(parseOtp('Transaction INR 398.05 on card ending 8010. OTP unavailable')?.code).toBeNull();
  expect(parseOtp(message)?.preview).not.toContain('123456');
 });
+
+test('ICICI-style payment wording does not mistake the confidentiality warning for a letter OTP',()=>{
+ const message='123456 is One-Time Password for INR 100.50 transaction towards AMAZON using ICICI Bank Credit Card 1111. OTPs are CONFIDENTIAL. DO NOT disclose';
+ const parsed=parseOtp(message);expect(parsed?.code).toBe('123456');expect(parsed?.candidateCount).toBe(1);expect(parsed?.preview).not.toContain('123456');
+ expect(parseOtp('Microsoft security code: ABCDEF')?.code).toBe('ABCDEF');
+ expect(parseOtp('OTP: 123456 and 654321. OTPs are CONFIDENTIAL.')?.code).toBeNull();
+});
