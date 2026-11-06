@@ -1,28 +1,29 @@
 # OTP Inbox
 
-**Your agents can finish the login. Your phone can stay in your pocket.**
+**Your phone gets the code. Your browser or agent takes the next step.**
 
-A small, self-hosted inbox for short-lived SMS and email verification codes. Capture on your device or Gmail account. Let a trusted agent find the right code, wait if needed, and claim it for a login you've authorized.
+A self-hosted bridge from SMS and Gmail to desktop login fields, approved sign-in links and trusted agents. Connect once. New arrivals appear without opening a watch; matching login codes can fill while you stay on the selected page. Your connection and saved choices survive Chrome restarts.
 
-[Project page](https://nishitbhatt.com/otp-inbox/) · [Start setup](docs/deploy.md) · [Agent connections](docs/agents.md) · [Security and limits](SECURITY.md)
+[Project page](https://nishitbhatt.com/otp-inbox/) · [Chrome helper](docs/browser-helper.md) · [Start setup](docs/deploy.md) · [Agent connections](docs/agents.md) · [Security](SECURITY.md)
 
-```text
-iPhone Shortcut / Android Tasker / Gmail polling + push
-                         ↓
-              Your private HTTPS inbox
-                         ↓
-         Match service + time + recipient account
-                         ↓
-            List → wait if needed → claim
-                         ↓
-       Codex · Claude Code · Dot · your own agent
-```
+This broader pilot is on `feat/automatic-site-fill` ([PR #5](https://github.com/bnishit/otp-inbox/pull/5)); it is not merged into `main` yet. Clone that branch for the features below. Each person runs their own inbox and capture setup; the public page is not a hosted inbox or Chrome Web Store listing.
 
-No hosted account. No AI API key. No permanent code database. You run the server and choose which agents get reader keys. MIT licensed.
+| What you want | What this build does | Boundary |
+| --- | --- | --- |
+| Stop moving codes from phone to desktop | iPhone SMS and Gmail feed one short-lived inbox; arrivals appear with the helper closed | Phone triggers can miss messages; Android remains a recipe awaiting device testing |
+| Fill the login without another click | One optional HTTPS website grant enables matching login autofill; saved connection survives restarts | Selected tab, clear empty fields and one fresh matched code; site exceptions available |
+| Follow an email sign-in link | Show an approved link for an explicit open action | Exact sender/destination rules; never automatically open arbitrary SMS URLs |
+| Choose payment behavior | Owner can separately save manual, fill, or fill-and-submit | Off by default; filling alone may authorize a charge on some pages; no transfer/withdrawal automation |
+| Let an agent finish a login | List → wait → matched claim through MCP or REST | Every reader can access the deployment; OTP retrieval is not payment authorization |
+| Compare AI message understanding | Optional SMS-only AI observation classifies and extracts beside the current parser | Off by default for new installs; sends whole SMS to OpenAI; cannot drive fills or actions |
 
-## Login helper and sign-in links
+No hosted account or permanent code database. The core bridge needs no AI key; optional [AI observation](docs/sms-observation.md) needs your OpenAI key and API usage. MIT licensed.
 
-Use the [Chrome login helper](docs/browser-helper.md) to see arrivals automatically, copy/fill a code or open an approved email sign-in link. [Recipient aliases and link rules](docs/login-links.md) reuse existing inbox access and claim ownership. This source build needs a reviewed backend/collector rollout and private configuration; it does not change a running deployment. The [product direction](docs/product-direction.md) explains the boundary for future SMS and transaction actions.
+## Evidence and direction
+
+The maintainer's running pilot has an observed Blinkit automatic SMS login and an owner-reported successful Amazon purchase OTP test. The Amazon report is user confirmation, not an independently captured fill-and-submit trace. Local regression coverage is 87 Bun tests, with separate synthetic browser checks. Native OS banner delivery still needs a coordinated live check. This does not prove every website, bank, phone or client works.
+
+A 60-message synthetic [benchmark](benchmarks/README.md) scored the existing parser 48/60 and a single AI Responses call 59/60 exact code-or-null results. It is one hand-written set, not live accuracy. SMS AI observation is enabled on the maintainer's instance; AI does not select production fill codes. Receipt categories, transaction lookups and named message automations are the [next product direction](docs/product-direction.md), not shipped actions.
 
 ## Why it exists
 
@@ -36,7 +37,8 @@ Copy this whole prompt into Codex or Claude Code on your computer. The agent sho
 Set up OTP Inbox end to end for me from https://github.com/bnishit/otp-inbox.
 Do the work, not just explain the steps. I will handle the phone taps.
 
-1. Clone the repo, or reuse my existing checkout. Read README.md, SECURITY.md,
+1. Use the feat/automatic-site-fill pilot branch, or reuse my existing checkout.
+   Read README.md, SECURITY.md,
    docs/deploy.md and the relevant capture/agent guides before making changes.
    Reuse existing deployment/config when present; preserve keys and unrelated
    settings. Never use the maintainer's inbox, accounts or credentials.
@@ -74,7 +76,13 @@ Do the work, not just explain the steps. I will handle the phone taps.
    if available. For Instinct/Muse, follow their documented secure integration
    recipe; don't invent native support or remove authentication to connect.
 
-7. Verify capture -> metadata lookup -> matching claim without printing codes.
+7. Install the unpacked Chrome helper when I want desktop filling. Reuse its
+   saved connection; explain the optional website permission and site opt-outs.
+   Payment behavior defaults off: I choose it separately. AI observation is also
+   off unless I opt in to sending SMS text to OpenAI. Follow the browser and
+   SMS-observation guides; never assume universal site coverage.
+
+8. Verify capture -> metadata lookup -> matching claim without printing codes.
    Check each mailbox's real health and distinguish push capture from polling.
    Use synthetic tests first; don't send emails/SMS or start third-party logins
    without my instruction. Guide me through a real phone/locked-screen test.
@@ -96,7 +104,7 @@ Prefer manual setup? Start below, then choose your capture and agent guides.
 Requires Bun, Python 3.10+ and Git.
 
 ```sh
-git clone https://github.com/bnishit/otp-inbox.git
+git clone --branch feat/automatic-site-fill https://github.com/bnishit/otp-inbox.git
 cd otp-inbox
 python3 scripts/setup.py --url http://127.0.0.1:8787 \
   --mailbox personal=you@example.com
@@ -135,7 +143,7 @@ Give your agent the [standing retrieval rule](examples/agent-instructions.md) on
 - Metadata lookup hides codes; claim returns the literal value only after selection. Unclear multiple tokens are held for review.
 - One client reserves an entry until expiry; same-client retry can recover a lost response.
 - Phone and mailbox keys are write-only; agents have separate reader keys. Every reader can access the whole deployment, not just one account.
-- No AI extraction, billing, public signup, multi-tenancy or outbound broadcast. Inbox waiting is long polling; Gmail push is an inbound notification.
+- No AI-controlled filling, billing, public signup, multi-tenancy or outbound broadcast. Optional SMS AI observation does not change inbox decisions. Inbox waiting is long polling; Gmail push is an inbound notification.
 
 ## Limits you should know before connecting accounts
 

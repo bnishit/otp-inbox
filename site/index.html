@@ -4,18 +4,18 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="theme-color" content="#f6f5ee" />
-    <title>OTP Inbox — Let your agent finish the login</title>
+    <title>OTP Bridge — From your phone to your flow</title>
     <meta
       name="description"
-      content="A small, open-source inbox for short-lived verification codes. Self-host SMS and Gmail capture, then connect Codex, Claude Code, Dot or your own agent."
+      content="Self-host SMS and Gmail capture. Fill matching desktop login codes, open approved sign-in links and connect trusted agents."
     />
     <meta
       property="og:title"
-      content="OTP Inbox — The last step shouldn't need your phone."
+      content="OTP Bridge — Your phone gets the code. Stay in your flow."
     />
     <meta
       property="og:description"
-      content="SMS + Gmail → your private inbox → your trusted agents. Open source. Self-hosted."
+      content="SMS + Gmail → your private inbox → Chrome autofill and trusted agents. Optional SMS AI observation."
     />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://nishitbhatt.com/otp-inbox/" />
@@ -31,7 +31,7 @@
     <div class="shell">
       <header>
         <a class="brand" href="#"
-          ><span class="mark" aria-hidden="true">↳</span> otp inbox<span
+          ><span class="mark" aria-hidden="true">↳</span> otp bridge<span
             class="wordmark-dot"
             >.</span
           ></a
@@ -51,19 +51,18 @@
               alt="An illuminated glass inbox with paper envelopes floating around it. Original illustration; no live inbox data."
             />
             <figcaption>
-              AN OPEN-SOURCE SIDE PROJECT / BUILT FOR YOUR AGENTS
+              OPEN SOURCE / FOR YOUR BROWSER AND AGENTS
             </figcaption>
           </figure>
           <div class="hero-copy">
             <p class="eyebrow">
-              <span class="dot"></span> OTP INBOX — OPEN SOURCE
+              <span class="dot"></span> OTP BRIDGE — OPEN SOURCE
             </p>
             <h1>
-              One less<br /><span>“send me<br />the code.”</span>
+              Your phone gets<br /><span>the code.<br />You stay here.</span>
             </h1>
             <p class="lede">
-              SMS and email codes. One private inbox.<br />Your agent finishes
-              the login.<br />You stay in the flow.
+              SMS and email. One private bridge.<br />Matching login codes fill in Chrome.<br />Your agents can use the same inbox.
             </p>
             <div class="actions">
               <a
@@ -72,11 +71,11 @@
                 >Make it yours <span>↗</span></a
               ><a class="quiet" href="#how">Take a look ↓</a>
             </div>
-            <p class="fine">SELF-HOSTED. SHORT-LIVED. NO AI API KEY.</p>
+            <p class="fine">CONNECT ONCE. KEEP YOUR FLOW. SELF-HOSTED.</p>
           </div>
           <div class="hero-footer">
-            <span>iPHONE / ANDROID / GMAIL</span><span>LIST → WAIT → CLAIM</span
-            ><span>BUILT FOR TRUSTED AGENTS ↗</span>
+            <span>iPHONE / ANDROID / GMAIL</span><span>ARRIVE → MATCH → FILL</span
+            ><span>CHROME + TRUSTED AGENTS ↗</span>
           </div>
         </section>
         <div class="manifesto">
@@ -87,44 +86,41 @@
           <div class="section-head">
             <p class="eyebrow">ONE INBOX, A FEW WAYS IN</p>
             <h2>
-              Your messages.<br />Your agents.<br /><em
+              Your messages.<br />Your next step.<br /><em
                 >One less interruption.</em
               >
             </h2>
             <p>
-              Capture does its job before an agent asks. Every connection
-              belongs to your own deployment.
+              Connect your capture source and Chrome helper once. New arrivals appear even with the panel closed. Your saved connection survives Chrome restarts.
             </p>
           </div>
           <div class="cards">
             <article>
-              <span class="card-num">01 / PHONE</span>
+              <span class="card-num">01 / CAPTURE</span>
               <h3>Your phone.<br />Off the critical path.</h3>
               <p>
-                An iPhone Shortcut filters worded OTP texts and sends matches.
-                On Android, use the included Tasker recipe.
+                Bring iPhone SMS and Gmail into your own short-lived inbox. Phone capture depends on your configured trigger; Android has a Tasker recipe.
               </p>
               <a
-                href="https://github.com/bnishit/otp-inbox/blob/main/docs/iphone.md"
+                href="https://github.com/bnishit/otp-inbox/blob/feat/automatic-site-fill/docs/iphone.md"
                 >iPhone setup ↗</a
               ><a
-                href="https://github.com/bnishit/otp-inbox/blob/main/docs/android.md"
+                href="https://github.com/bnishit/otp-inbox/blob/feat/automatic-site-fill/docs/android.md"
                 >Android recipe ↗</a
               >
             </article>
             <article>
-              <span class="card-num">02 / EMAIL</span>
-              <h3>Your mail.<br />Minus the waiting.</h3>
+              <span class="card-num">02 / CHROME</span>
+              <h3>The right code.<br />Already on the page.</h3>
               <p>
-                Start with a private minute-check collector. Add signed Google
-                push notifications for faster arrival, with polling as backup.
+                Grant website access once. One fresh matching login code fills on the selected page. Save site exceptions, see arrivals, or explicitly open an approved email sign-in link.
               </p>
               <a
-                href="https://github.com/bnishit/otp-inbox/blob/main/docs/gmail-polling.md"
-                >Polling setup ↗</a
+                href="https://github.com/bnishit/otp-inbox/blob/feat/automatic-site-fill/docs/browser-helper.md"
+                >Set up Chrome autofill ↗</a
               ><a
-                href="https://github.com/bnishit/otp-inbox/blob/main/docs/gmail-push.md"
-                >Push setup ↗</a
+                href="https://github.com/bnishit/otp-inbox/blob/feat/automatic-site-fill/docs/login-links.md"
+                >Sign-in links ↗</a
               >
             </article>
             <article>
@@ -136,13 +132,25 @@
                 API clients.
               </p>
               <a
-                href="https://github.com/bnishit/otp-inbox/blob/main/docs/agents.md"
+                href="https://github.com/bnishit/otp-inbox/blob/feat/automatic-site-fill/docs/agents.md"
                 >Connect your agent ↗</a
               ><a
-                href="https://github.com/bnishit/otp-inbox/blob/main/examples/agent-instructions.md"
+                href="https://github.com/bnishit/otp-inbox/blob/feat/automatic-site-fill/examples/agent-instructions.md"
                 >Give it the standing rule ↗</a
               >
             </article>
+          </div>
+        </section>
+        <section class="section" id="next">
+          <div class="section-head">
+            <p class="eyebrow">USEFUL TODAY. ROOM TO GROW.</p>
+            <h2>More than copying codes.<br /><em>Clear choices at every step.</em></h2>
+            <p>This broader pilot is available on the <a href="https://github.com/bnishit/otp-inbox/tree/feat/automatic-site-fill">automatic-fill branch</a>. It is not merged into main yet. Self-host it and load the unpacked helper; there is no hosted signup or store listing.</p>
+          </div>
+          <div class="cards">
+            <article><span class="card-num">OWNER CHOICE / AVAILABLE</span><h3>Payments.<br />Your saved choice.</h3><p>Keep payment codes manual, fill them, or fill and submit. Enable this separately. Filling alone can authorize a charge on some bank pages. Recovery, transfers and withdrawals stay manual.</p><a href="https://github.com/bnishit/otp-inbox/blob/feat/automatic-site-fill/docs/browser-helper.md">Payment behavior and limits ↗</a></article>
+            <article><span class="card-num">SMS AI / OBSERVATION ONLY</span><h3>Understand messages.<br />Compare before acting.</h3><p>Optional AI predicts message type and code beside the existing parser. It sends whole SMS text to OpenAI and keeps comparison totals in the bridge. It never selects a fill code. Enabled on the maintainer pilot; off by default for new installs.</p><a href="https://github.com/bnishit/otp-inbox/blob/feat/automatic-site-fill/docs/sms-observation.md">AI data flow and limits ↗</a></article>
+            <article><span class="card-num">MESSAGE ACTIONS / ROADMAP</span><h3>A receipt today.<br />A useful next step tomorrow.</h3><p>Receipt categories, transaction lookup and named message rules are the next direction. They are not shipped actions. A URL in a message is never permission to open it or run an automation.</p><a href="https://github.com/bnishit/otp-inbox/blob/feat/automatic-site-fill/docs/product-direction.md">See the product direction ↗</a></article>
           </div>
         </section>
         <section class="setup section" id="setup">
@@ -155,7 +163,7 @@
             </p>
             <a
               class="quiet"
-              href="https://github.com/bnishit/otp-inbox/blob/main/docs/deploy.md"
+              href="https://github.com/bnishit/otp-inbox/blob/feat/automatic-site-fill/docs/deploy.md"
               >Read the full deployment guide ↗</a
             >
           </div>
@@ -172,7 +180,8 @@
                 <!-- setup-prompt:start --><textarea id="setup-prompt" aria-label="Full agent setup prompt" readonly spellcheck="false">Set up OTP Inbox end to end for me from https://github.com/bnishit/otp-inbox.
 Do the work, not just explain the steps. I will handle the phone taps.
 
-1. Clone the repo, or reuse my existing checkout. Read README.md, SECURITY.md,
+1. Use the feat/automatic-site-fill pilot branch, or reuse my existing checkout.
+   Read README.md, SECURITY.md,
    docs/deploy.md and the relevant capture/agent guides before making changes.
    Reuse existing deployment/config when present; preserve keys and unrelated
    settings. Never use the maintainer&#x27;s inbox, accounts or credentials.
@@ -210,7 +219,13 @@ Do the work, not just explain the steps. I will handle the phone taps.
    if available. For Instinct/Muse, follow their documented secure integration
    recipe; don&#x27;t invent native support or remove authentication to connect.
 
-7. Verify capture -&gt; metadata lookup -&gt; matching claim without printing codes.
+7. Install the unpacked Chrome helper when I want desktop filling. Reuse its
+   saved connection; explain the optional website permission and site opt-outs.
+   Payment behavior defaults off: I choose it separately. AI observation is also
+   off unless I opt in to sending SMS text to OpenAI. Follow the browser and
+   SMS-observation guides; never assume universal site coverage.
+
+8. Verify capture -&gt; metadata lookup -&gt; matching claim without printing codes.
    Check each mailbox&#x27;s real health and distinguish push capture from polling.
    Use synthetic tests first; don&#x27;t send emails/SMS or start third-party logins
    without my instruction. Guide me through a real phone/locked-screen test.
@@ -229,7 +244,7 @@ what is working, what was actually tested, what remains, and how to revoke it.</
               <div class="terminal-head">
                 <span>OR START MANUALLY</span><span>macOS / Linux</span>
               </div>
-              <pre><code>git clone https://github.com/bnishit/otp-inbox.git
+              <pre><code>git clone --branch feat/automatic-site-fill https://github.com/bnishit/otp-inbox.git
 cd otp-inbox
 python3 scripts/setup.py \
   --url http://127.0.0.1:8787
@@ -270,8 +285,7 @@ bun --env-file=.local/server.env run server.ts</code></pre>
               <h3>Trust the agent you connect</h3>
               <p>
                 Every reader key can access your captured inbox. Match before
-                claim. A code never authorizes a payment, security change or
-                sharing with someone else.
+                claim. Retrieval alone does not authorize a payment or security change. Payment filling is a separate saved owner choice; it defaults off.
               </p>
             </article>
             <article>
@@ -285,16 +299,13 @@ bun --env-file=.local/server.env run server.ts</code></pre>
             <article>
               <h3>Proof, not promises</h3>
               <p>
-                The private predecessor handled real iPhone SMS, three Gmail
-                accounts and a real login. This public edition has local tests.
-                Android, Instinct and Muse are recipes awaiting client/device
-                tests.
+                The maintainer pilot completed a Blinkit SMS login; the owner reports a successful Amazon purchase OTP test. Local coverage: 87 Bun tests plus synthetic browser checks. Android and native OS banner delivery still need live proof.
               </p>
             </article>
           </div>
           <a
             class="quiet"
-            href="https://github.com/bnishit/otp-inbox/blob/main/SECURITY.md"
+            href="https://github.com/bnishit/otp-inbox/blob/feat/automatic-site-fill/SECURITY.md"
             >Read the security model and limits ↗</a
           >
         </section>
@@ -302,7 +313,7 @@ bun --env-file=.local/server.env run server.ts</code></pre>
           <p class="hand">LESS FETCHING CODES. MORE GETTING THINGS DONE.</p>
           <h2>Fork it.<br /><em>Keep your flow.</em></h2>
           <a class="button" href="https://github.com/bnishit/otp-inbox"
-            >Get OTP Inbox on GitHub <span>↗</span></a
+            >Get OTP Bridge on GitHub <span>↗</span></a
           >
           <p>MIT licensed · No hosted service · No public inbox</p>
         </section>
@@ -311,7 +322,7 @@ bun --env-file=.local/server.env run server.ts</code></pre>
         <a class="brand" href="/">Made by Nishit Bhatt ↗</a>
         <div>
           <a href="https://github.com/bnishit/otp-inbox">Source</a
-          ><a href="https://github.com/bnishit/otp-inbox/blob/main/LICENSE"
+          ><a href="https://github.com/bnishit/otp-inbox/blob/feat/automatic-site-fill/LICENSE"
             >MIT license</a
           ><a href="privacy/">Maintainer instance privacy</a>
         </div>

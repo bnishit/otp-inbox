@@ -1,12 +1,16 @@
 # A bridge for one useful next action
 
-The starting user is at a desktop login while the proof arrives on their phone or email. The product should bring the right next action to that page: fill a code, copy it, or open a verified sign-in link. The current source build covers automatic arrival discovery and explicit next actions. It does not expand inbox permissions.
+The starting user is at a desktop login while the proof arrives on their phone or email. The product should bring the right next action to that page: fill a code, copy it, or open a verified sign-in link. The current pilot covers automatic arrival discovery, matching Chrome login autofill and separately saved payment behavior. It does not expand inbox permissions.
 
 ## Product choice
 
 Use the existing short-lived inbox and claim path for all clients, including the Chrome helper. This keeps one expiry rule and one owner for each secret. The browser shows captured login items automatically, with a badge and optional alerts. Owners can enable automatic login filling across HTTPS websites with one Chrome permission. The selected login page gets one fresh domain-matched SMS or email code without a per-site setup or per-login click. Site exceptions can narrow service/channel/account or turn filling off. Payment codes have a separate saved fill or fill-and-submit option. Recovery, transfers, withdrawals, ambiguous messages, unmatched brands and embedded frames stay manual. Sign-in links are not opened automatically.
 
 The main trap is treating every message as an instruction. A message may contain a link to a transaction, an amount, a phishing request, a password reset or a code that approves a payment. The same action button must not mean both “sign me in” and “approve this charge.” Sender names, page text and message content cannot grant permission.
+
+## Current evidence and AI scope
+
+The maintainer pilot has an observed Blinkit automatic SMS login and an owner-reported successful Amazon purchase OTP test. The latter is user confirmation, not an independently captured payment trace. Native OS banner delivery and physical Android coverage remain unverified. Optional SMS AI observation is running on the maintainer instance; new installs default off. It sends incoming SMS to OpenAI and compares aggregate predictions without controlling inbox entries or actions. Email permissions and capture are unchanged. See [observation limits](sms-observation.md) and the [synthetic benchmark](../benchmarks/README.md).
 
 ## Next expansion: message actions with named rules
 
@@ -38,4 +42,4 @@ Use counts without message content: request-to-ready time, missing-source rate, 
 3. Pilot the unpacked helper before store submission; test closed/locked phone, native banner delivery, iframe fallbacks and supported websites with explicit users.
 4. Define one non-login rule and its scope before collecting new message types or adding another destination.
 
-The next release decision is the login pilot. General message automation remains a scoped follow-on; no new SMS categories, financial writes, external forwarding or inbox permissions are enabled by this build.
+General message automation remains a scoped follow-on. AI observation compares SMS already reaching an opted-in deployment; it does not widen the phone trigger, enable financial writes or authorize forwarding to another destination.
