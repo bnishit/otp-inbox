@@ -44,7 +44,7 @@ jobs:
               const r=await fetch(origin.origin+"/v1/observation",{method:"POST",headers:{authorization:"Bearer "+process.env.OTP_DIAGNOSTICS_TOKEN,"content-type":"application/json"},body:"{}",redirect:"error",signal:AbortSignal.timeout(10000)});
               if(!r.ok)throw Error("diagnostics_unavailable");
               const d=await r.json();
-              if(d.counts?.credits_exhausted)throw Error("credits_exhausted_not_a_format_bug");
+              if(d.blocked_until&&Date.parse(d.blocked_until)>Date.now())throw Error("credits_exhausted_not_a_format_bug");
               needed=d.mode==="decisions"&&((d.counts?.ai_uncertain||0)+(d.counts?.failed||0)>0);
             }
             const fs=await import("node:fs");fs.appendFileSync(process.env.GITHUB_OUTPUT,"needed="+needed+"\n");
