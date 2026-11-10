@@ -1,5 +1,6 @@
 import { timingSafeEqual, createHash } from 'node:crypto';
 import {createSmsShadow,type SmsShadow} from './sms-shadow';
+import {createOtpResolver,createExampleLoader,type OtpResolver} from './otp-ai';
 import {createMcp} from './mcp';
 import {createGmailPush} from './email/gmail-push';
 import {withoutUrls, parseLoginLink, emailAddress, validateLinkRules, type LoginLinkRule} from './login';
@@ -42,7 +43,8 @@ type Entry = { capture_method: 'iphone' | 'android' | 'email_poll' | 'gmail_push
   candidateCount: number; confidence: string; preview: string; received: number; expires: number; claimedBy?: string;
   mailbox: string | null; link: string | null; linkOrigin: string | null; reviewReason: string | null; kind: 'code' | 'link' };
 
-export function createBridge(ingestKey: string, clients: Record<string, string>, now = Date.now, emailSources: Record<string, EmailSource> = {}, linkRules: LoginLinkRule[] = [], smsShadow?:SmsShadow) {
+export function createBridge(ingestKey: string, clients: Record<string, string>, now = Date.now, emailSources: Record<string, EmailSource> = {}, linkRules: LoginLinkRule[] = [], smsShadow?:SmsShadow, resolver?:OtpResolver, diagnosticsToken='') {
+  if(diagnosticsToken&&diagnosticsToken.length<32)throw Error('Diagnostic credential is too short');
   validateLinkRules(linkRules);
   for (const source of Object.values(emailSources)) {
     if (source.aliases !== undefined && (!Array.isArray(source.aliases) || source.aliases.length > 30 || source.aliases.some(alias => !emailAddress(alias)))) throw Error('Invalid recipient aliases');
@@ -73,7 +75,8 @@ export function createBridge(ingestKey: string, clients: Record<string, string>,
     const owner = Object.entries(clients).find(([, value]) => equal(key, value))?.[0];
     const emailSource = Object.entries(emailSources).find(([, source]) => equal(key, source.token));
     const isEmailWrite = path === '/v1/email' || path === '/v1/source-heartbeat';
-    if (path === '/v1/sms' ? !equal(key, ingestKey) : isEmailWrite ? !emailSource : !owner) return reply({ error: 'unauthorized' }, 401);
+    const diagnosticsOnly=path==='/v1/observation'&&equal(key,diagnosticsToken);
+    if (path === '/v1/sms' ? !equal(key, ingestKey) : isEmailWrite ? !emailSource : !owner&&!diagnosticsOnly) return reply({ error: 'unauthorized' }, 401);
     if (Number(req.headers.get('content-length') || 0) > 8192) return reply({ error: 'too_large' }, 413);
     let data: Record<string, unknown>;
     try {
@@ -83,7 +86,7 @@ export function createBridge(ingestKey: string, clients: Record<string, string>,
       if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error();
     } catch { return reply({ error: 'invalid_json' }, 400); }
     cleanup();
-    if (path === '/v1/observation') return reply(smsShadow?.snapshot()||{enabled:false,mode:'observe_only'});
+    if (path === '/v1/observation') return reply(resolver?.snapshot()||smsShadow?.snapshot()||{enabled:false,mode:'observe_only'});
     if (path === '/v1/source-heartbeat') {
       const checked = Date.parse(String(data.checked_at));
       if (!Number.isFinite(checked) || Math.abs(checked - now()) > 60_000 || !['ok', 'error'].includes(String(data.status))) return reply({ error: 'invalid_heartbeat' }, 400);
@@ -108,18 +111,33 @@ export function createBridge(ingestKey: string, clients: Record<string, string>,
         if (!account || data.recipient_conflict === true) return reject('ambiguous_recipient');
         if (![source.email, ...(source.aliases || [])].some(address => address.toLowerCase() === account)) return reject('recipient_not_approved');
       }
-      const parsed = parseOtp(data.message, sender);
+      let parsed = parseOtp(data.message, sender);
       if(channel==='sms'){try{smsShadow?.observe(data.message,parsed?.code??null);}catch{}}
       const login = channel === 'email' ? parseLoginLink(data.message, sender, data.authenticated_domain, linkRules) : null;
+      if (channel === 'email' && (typeof data.message_id !== 'string' || !data.message_id || data.message_id.length > 200)) return reply({ error: 'message_id_required' }, 400);
+      const digest = createHash('sha256').update(channel + '\0' + mailbox + '\0' + (channel === 'email' ? data.message_id : sender + '\0' + data.message)).digest('hex');
+      if (seen.has(digest)) return reject('duplicate');
+      let aiReason:string|null=null;
+      if(resolver&&!login){
+        const result=await resolver.resolve(data.message);
+        if(result.reason==='no_code')return reject('not_recognized_as_otp');
+        if(result.code){
+          const base=parsed||parseOtp('OTP '+data.message,sender)!;
+          parsed={...base,code:result.code,candidateCount:1,confidence:'ai_decision',preview:base.preview.split(result.code).join('[redacted]')};
+        }else if(result.reason==='ai_uncertain'&&parsed?.code){
+          parsed={...parsed,confidence:'rules_fallback'};
+        }else if(result.reason==='multiple_codes'||result.reason==='ai_uncertain'){
+          parsed={...(parsed||parseOtp('OTP '+data.message,sender)!),code:null,candidateCount:Math.max(2,parsed?.candidateCount||0)};
+          aiReason=result.reason;
+        }else if(!parsed?.code){aiReason=result.reason;}
+        if(seen.has(digest))return reject('duplicate');
+      }
       if (!parsed && !login) return reject('not_recognized_as_otp');
       const mixed = !!login && !!parsed?.candidateCount;
       const details = parsed || {code:null, candidateCount:0, serviceHint:null, expiresIn:RETENTION, confidence:'labelled', preview:''};
       const kind = login ? 'link' as const : 'code' as const;
       const link = !mixed ? login?.url || null : null;
-      const reviewReason = mixed ? 'multiple_secret_types' : login?.reason || null;
-      if (channel === 'email' && (typeof data.message_id !== 'string' || !data.message_id || data.message_id.length > 200)) return reply({ error: 'message_id_required' }, 400);
-      const digest = createHash('sha256').update(channel + '\0' + mailbox + '\0' + (channel === 'email' ? data.message_id : sender + '\0' + data.message)).digest('hex');
-      if (seen.has(digest)) return reject('duplicate');
+      const reviewReason = mixed ? 'multiple_secret_types' : login?.reason || aiReason;
       if (entries.size >= 500 || seen.size >= 1000) return reply({ accepted: false, reason: 'capacity' }, 429);
       const expires = Math.min(received + Math.min(details.expiresIn, login?.expiresIn ?? RETENTION), now() + RETENTION);
       if (expires <= now()) return reject('expired');
@@ -191,8 +209,9 @@ if (import.meta.main) {
   const clients = JSON.parse(Bun.env.OTP_CLIENT_TOKENS || '{}');
   if (ingestKey.length < 32 || !Object.keys(clients).length || Object.values(clients).some(key => typeof key !== 'string' || key.length < 32)) throw new Error('OTP credentials are missing');
   const emailSources = JSON.parse(Bun.env.OTP_EMAIL_SOURCES || '{}');
-  const shadow=createSmsShadow({enabled:Bun.env.OTP_AI_SHADOW==='true',key:Bun.env.OTP_AI_OPENAI_KEY||''});
-  const bridge = createBridge(ingestKey, clients, Date.now, emailSources, validateLinkRules(JSON.parse(Bun.env.OTP_LOGIN_LINK_RULES || '[]')),shadow);
+  const resolver=Bun.env.OTP_AI_MODE==='resolve'?createOtpResolver({key:Bun.env.OTP_AI_OPENAI_KEY||'',loadExamples:Bun.env.OTP_POLICY_URL?createExampleLoader(Bun.env.OTP_POLICY_URL):undefined}):undefined;
+  const shadow=resolver?undefined:createSmsShadow({enabled:Bun.env.OTP_AI_SHADOW==='true',key:Bun.env.OTP_AI_OPENAI_KEY||''});
+  const bridge = createBridge(ingestKey, clients, Date.now, emailSources, validateLinkRules(JSON.parse(Bun.env.OTP_LOGIN_LINK_RULES || '[]')),shadow,resolver,Bun.env.OTP_DIAGNOSTICS_TOKEN||'');
   const mcp = createMcp(bridge, clients);
   const push = Bun.env.GMAIL_PUSH_CONFIG ? createGmailPush(JSON.parse(Bun.env.GMAIL_PUSH_CONFIG),emailSources,bridge) : null;
   if (push) await push.start();

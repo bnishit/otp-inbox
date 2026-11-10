@@ -1,27 +1,33 @@
-# SMS AI observation mode
+# AI code extraction and guarded repair
 
-Observation mode compares one AI prediction with the existing parser. The existing parser alone controls inbox entries, review status, claims and browser filling. Predictions cannot create an inbox item, replace its code, release a secret or trigger an action. Email capture is unchanged.
+The default bridge remains deterministic. `OTP_AI_SHADOW=true` keeps the older SMS-only observation mode: it compares a Responses prediction without changing a code. `OTP_AI_MODE=resolve` instead enables one Decisions request for captured SMS and email. Do not enable resolve mode until the actual API evaluation passes with the intended project key.
 
-## Data flow and retention
+## How selection works
 
-Enable with `OTP_AI_SHADOW=true` and an authorised `OTP_AI_OPENAI_KEY` on the server. Both are required; observation is otherwise off. Only authenticated, fresh SMS requests with a valid message are observed. This includes SMS rejected by the current parser as non-OTP, so classification coverage can be compared. The installed phone forwarding setup determines which SMS reach this endpoint; observation does not widen that capture.
+The application enumerates literal code-shaped tokens from one message. Decisions selects one supplied candidate and a verification purpose, or selects no code / ambiguity. It cannot generate a new code. Both answers require confidence of at least 0.9. This is a conservative operating threshold, not a calibrated guarantee. There are at most 64 candidates and four active requests. Messages beyond the size/candidate limit remain with the rules path.
 
-The whole incoming SMS text is sent to OpenAI's Responses API. The benchmarked GPT-6 Luna prompt/schema is shared with the experiment and uses `store:false`, no tools, no URL following, and a ten-second timeout. OpenAI's API data policies still apply; `store:false` is not a promise of zero abuse-monitoring retention. The key is sent only in the API authentication header and never returned in diagnostics.
+The selected literal is checked locally, redacted in metadata and retained only for the existing short-lived inbox. Account binding, service matching, expiry, claims, link authentication and browser action settings still apply. Approved code-plus-link messages remain review-only. Code notices with ordinary footer URLs are not mistaken for sign-in links.
 
-Comparisons keep only aggregate counts, category counts, token totals and elapsed time. They do not keep SMS text, extracted codes, sender/service/account values, per-message IDs, code hashes or per-message model responses. A private in-memory hash of each message suppresses duplicate API requests for ten minutes; it is never exposed. At most two requests are active. Incoming capture never waits for AI. Busy, duplicate and skipped requests are counted.
+The AI request receives the captured SMS or minimized email excerpt. It has no tools, cannot follow URLs, and cannot edit source, send messages or approve a payment. Decisions API data controls apply. Do not describe it as zero retention unless that account has eligible Zero Data Retention enabled.
 
-## Limits and diagnostics
+One retry handles transient failures within a shared ten-second deadline. Exhausted API credits open a five-minute circuit and are reported as a funding problem. Known single-code rule results remain usable during an outage; ambiguous rule results are not released. The default limit is 1,000 requests per UTC day per process, not an account billing cap. Restarting or adding replicas can increase total calls.
 
-The default is at most 100 API requests per UTC day per process. The deduplication map and aggregates reset on restart, or with the next SMS of a new UTC day after outstanding requests finish. Multiple replicas or restarts can increase total daily calls; this is not a hard account billing cap. Provider failures and invalid predictions remain counters and cannot affect inbox behavior. A failed comparison is not proof that either parser was correct.
+## Guarded self-healing
 
-POST an empty JSON object to `/v1/observation` with an existing reader key to read the current snapshot. Phone/email ingest keys cannot read it. The response contains mode, model, window, configured limit, in-flight count, aggregate comparison/category counts, token totals and total elapsed milliseconds. There is no public dashboard or new MCP tool.
+The repair workflow checks aggregate production counters every six hours, or can run manually. Its separate diagnostic token can read only `/v1/observation`; it cannot list or claim messages. Exhausted credits stop repair instead of generating a code change.
 
-Comparison buckets are `same_code`, `both_none`, `ai_only_code`, `parser_only_code`, and `different_codes`. An agreement measures agreement, not ground-truth accuracy. Requests and failures, invalid codes, duplicate inputs and skips are separate counters. Observed data is not used to tune or alter the current parser automatically.
+A reproducible failure must appear in the public synthetic corpus. Decisions can select known failed synthetic examples to add to `otp-examples.json`. It cannot write arbitrary source. Only this data file may change. The repaired version must pass all offline tests, the full 100-case actual API evaluation and 100 related synthetic mutation checks before a PR can auto-merge. Repository branch rules still apply. A changed main branch aborts the merge job.
 
-Turn observation off by setting `OTP_AI_SHADOW=false` and deploying. Do not broaden the existing inbox or Google OAuth scopes. No Chrome extension reload is needed for a server-only rollout. Test deployments and source equality separately from observing actual production SMS; never call synthetic checks a real phone-delivery test.
+If no synthetic case reproduces an incident, there is no automatic source change. Genuine ambiguity, new unsupported encodings, capture failures, expired codes and site permissions are not automatically declared parser bugs. The mutation set is related synthetic coverage, not an independent estimate of real-inbox accuracy.
 
-## Verification
+With `OTP_POLICY_URL` set to the trusted repository's raw `otp-examples.json`, the server checks for merged example updates at most once every five minutes when a message arrives. Invalid/unavailable updates retain the last known valid examples. This updates code-selection guidance only; it cannot change authentication, expiry or browser permissions.
 
-Run `bun test`. Observer tests cover flag/key gating, bounded concurrency, deduplication and request limits, time-window resets, literal code checks, failures, secret-free snapshots, reader-only diagnostics, non-blocking capture and unchanged claim results.
+Required workflow configuration: secret `OTP_FORMAT_OPENAI_KEY`, read-only secret `OTP_DIAGNOSTICS_TOKEN`, and secret `OTP_BRIDGE_ORIGIN`. The same diagnostics token must be configured on the server. Auto-merge and Actions PR creation must be allowed by the repository. Scheduled runs also require repository variable `OTP_SELF_HEAL_ENABLED=true`; leave it off until actual API evaluation passes. Deploy and activate only after evaluating the intended API project.
 
-The synthetic benchmark lives in [benchmarks](../benchmarks/README.md). Its observed results do not establish accuracy on arbitrary live SMS. Begin with observation and review aggregate disagreements before proposing any use of AI-selected codes for filling.
+## Evidence and verification
+
+Run `bun test`, the Python suite and `python3 scripts/browser-check.py`. `bun run benchmarks/verify.ts --out .local/format-evaluation.json` evaluates 60 existing SMS fixtures plus 40 additional SMS/email cases through the actual Decisions API. Add `--holdout` for the related mutation set. Provider failures are never counted as correct no-code answers. The corpus contains no real messages, identifiers or live OTPs.
+
+`POST /v1/observation` returns only aggregate counters, mode, model, limits and latency. No source text, codes, account identifiers or per-message results are exposed. The diagnostic credential is intentionally unable to access other inbox endpoints.
+
+Official API reference: [Decisions](https://developers.openai.com/api/docs/guides/decisions).

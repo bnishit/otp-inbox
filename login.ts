@@ -30,6 +30,11 @@ export function validateLinkRules(value: unknown): LoginLinkRule[] {
 export function parseLoginLink(message: string, sender: string, authenticatedDomain: unknown, rules: LoginLinkRule[]) {
   const urls = linksIn(message);
   if (!urls.length || !/\b(?:one[ -]?time|magic|sign[ -]?in|log[ -]?in|verify|verification|reset)\b/i.test(withoutUrls(message))) return null;
+  const codeNotice=/\b(?:otp|code|passcode)\b/i.test(withoutUrls(message));
+  const linkAction=/\b(?:magic|one[ -]?time|sign[ -]?in|log[ -]?in|verification)\s+link\b|\b(?:click|open|follow|use)\b[^\n]{0,80}\b(?:link|button)\b|\b(?:sign[ -]?in|log[ -]?in|verify(?: your)?(?: email| account)?|reset(?: your)? password)\s*:?\s*https?:/i.test(message);
+  const configuredTarget=urls.some(value=>{try{const u=new URL(value);return rules.some(r=>r.origin===u.origin&&r.pathname===u.pathname);}catch{return false;}});
+  // Footer URLs in a code notice are not sign-in links. Known targets still keep mixed mail under review.
+  if(codeNotice&&!linkAction&&!configuredTarget)return null;
   const address = emailAddress(sender);
   const review = (reason: string) => ({url: null as string|null, origin: null as string|null, service: null as string|null,
     candidateCount: urls.length, expiresIn: 600000, reason});
