@@ -6,7 +6,7 @@ import {withoutUrls, parseLoginLink, emailAddress, validateLinkRules, type Login
 
 const RETENTION = 10 * 60_000;
 const LABEL = /\b(?:otp|one[ -]?time(?: password| code| pin)?|verification(?: code)?|security code|authentication code|authorization code|auth code|login code|log[ -]?in code|sign[ -]?in code|access code|confirmation code|passcode|temporary (?:password|pin)|reset code|code|tac|mtan)\b|验证码|校验码|动态码|رمز التحقق|सत्यापन कोड/ig;
-const BRAND = /\b(cashfree|amazon|google|gmail|microsoft|outlook|apple|openai|chatgpt|anthropic|claude|github|gitlab|slack|notion|razorpay|phonepe|paytm|whatsapp|telegram|instagram|facebook|linkedin|twitter|uber|ola|swiggy|zomato|airtel|jio|hdfc|icici|sbi|axis|kotak|adobe|dropbox|zoom|netflix|flipkart|mybillbook|flobiz)\b/i;
+const BRAND = /\b(aadhaar|aadhar|adhaar|uidai|cashfree|amazon|google|gmail|microsoft|outlook|apple|openai|chatgpt|anthropic|claude|github|gitlab|slack|notion|razorpay|phonepe|paytm|whatsapp|telegram|instagram|facebook|linkedin|twitter|uber|ola|swiggy|zomato|airtel|jio|hdfc|icici|sbi|axis|kotak|adobe|dropbox|zoom|netflix|flipkart|mybillbook|flobiz)\b/i;
 const responseHeaders = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
 const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: responseHeaders });
 const equal = (a: string, b: string) => !!b && Buffer.byteLength(a) === Buffer.byteLength(b) && timingSafeEqual(Buffer.from(a), Buffer.from(b));
@@ -21,7 +21,7 @@ export function parseOtp(message: string, sender = '') {
   if (!labels.length && !bare) return null;
   if (/\b(?:promo|discount|coupon|tracking|referral|order) code\b/i.test(text) && !/\b(?:otp|one[ -]?time|verification|authentication|security code)\b/i.test(text)) return null;
   // Request dates, card suffixes, amounts, references and bank warnings are not codes.
-  const details = [...text.matchAll(/\bOTPs\s+are\s+(?:SECRET|CONFIDENTIAL)\b|\b(?:card|account|a\/c)(?:\s+(?:number|no\.?|ending|ends|in|with|xx+)|[ *xX:-]){0,8}\s*\d{4}\b|(?:\bINR\b|\bRs\.?|₹|\bUSD\b|\$)\s*[\d,]+(?:\.\d+)?|\b(?:ref(?:erence)?|txn|transaction)\s*(?:id|no\.?|number)\s*[:#-]?\s*[A-Z0-9-]+/ig)];
+  const details = [...text.matchAll(/\b(?:aadhaar|aadhar|adhaar)\s*\([x*]{2,8}\d{4}\)|\bOTPs\s+are\s+(?:SECRET|CONFIDENTIAL)\b|\b(?:card|account|a\/c)(?:\s+(?:number|no\.?|ending|ends|in|with|xx+)|[ *xX:-]){0,8}\s*\d{4}\b|(?:\bINR\b|\bRs\.?|₹|\bUSD\b|\$)\s*[\d,]+(?:\.\d+)?|\b(?:ref(?:erence)?|txn|transaction)\s*(?:id|no\.?|number)\s*[:#-]?\s*[A-Z0-9-]+/ig)];
   details.push(...text.matchAll(/\b\d{1,2}\s+(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4}\b|\b\d{4}-\d{2}-\d{2}(?:T[\d:.]+Z?)?\b/ig));
   const tokens = [...text.matchAll(/\b[A-Z0-9]{4,12}(?:-[A-Z0-9]{3,6})?\b/ig)]
     .filter(m => (/\d/.test(m[0]) || (/^[A-Z]{4,12}$/.test(m[0]) && !BRAND.test(m[0]) && !/^(YOUR|THIS|THAT|VALID|NEVER|SHARE|WITH|ANYONE|PLEASE|ENTER|ONLY|MINUTES|SECONDS|PASSWORD|SECURITY|CONFIRM|REQUEST|RECEIVED|IGNORE|LOGIN|RESET|FROM)$/.test(m[0]))) &&
