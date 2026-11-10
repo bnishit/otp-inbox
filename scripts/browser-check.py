@@ -47,6 +47,23 @@ if __name__=='__main__':
         if(result.ok!==ok || await page.locator('input').inputValue()!=='')throw Error('Probe regression: '+name);
         results.push({name,passed:true});
       }
+      for(const [name,html,ok] of [
+        ['GoDaddy account checkup', '<h1>Account checkup</h1><p>A text message with your code has been sent to the number you gave us. Please enter the 6 digit code in that message.</p><label>6-digit code<input id="verification-code-input"></label>', true],
+        ['Cashfree authentication popup', '<h1>Accept payments</h1><div role="dialog"><h2>Authenticate</h2><p>Enter the 6-digit OTP sent to your email</p>'+Array.from({length:6},(_,i)=>'<input maxlength="1" aria-label="Please enter OTP character '+(i+1)+'">').join('')+'</div>', true],
+        ['Cashfree payment popup stays manual', '<h1>Login</h1><div role="dialog"><h2>Authenticate payment</h2><p>Enter the 6-digit OTP sent to your email</p><input name="otp"></div>', false],
+        ['recovery code stays manual', '<h1>Reset your password</h1><p>Enter the verification code sent to your email</p><input name="otp">', false]
+      ]){
+        await page.setContent('<title>Email Login</title>'+html);
+        const probe=await page.evaluate(({source})=>(0,eval)('('+source+')')(null,location.origin),{source:fill.toString()});
+        const result=await page.evaluate(({source})=>(0,eval)('('+source+')')('246810',location.origin,{payments:null,expectedPayment:false}),{source:fill.toString()});
+        const value=await page.locator('input').evaluateAll(es=>es.map(e=>e.value).join(''));
+        if(probe.ok!==ok||result.ok!==ok||value!==(ok?'246810':''))throw Error('Challenge regression: '+name);
+        results.push({name,passed:true});
+      }
+      await page.setContent('<title>Checkout</title><h1>Confirm payment</h1><div role="dialog"><h2>Authenticate</h2><p>Enter the OTP sent to your phone</p><input name="otp"></div>');
+      const checkout=await page.evaluate(({source})=>(0,eval)('('+source+')')(null,location.origin),{source:fill.toString()});
+      if(checkout.ok)throw Error('A payment popup hid the checkout context');
+      results.push({name:'payment popup cannot hide checkout context',passed:true});
       await page.setContent('<h1>Login</h1><input autocomplete="one-time-code" value="123">');
       const existing=await page.evaluate(({source})=>(0,eval)('('+source+')')(null,location.origin),{source:fill.toString()});
       if(existing.ok || await page.locator('input').inputValue()!=='123')throw Error('Existing value was overwritten');
@@ -80,6 +97,6 @@ if __name__=='__main__':
         # CLI prints source as well. Retain the result only, which contains no secrets.
         output=result.stdout.split('### Result\n',1)[-1].split('### Ran Playwright code',1)[0].strip()
         parsed=json.loads(output)
-        if len(parsed.get('results',[])) != len(cases)+12 or not all(result.get('passed') for result in parsed['results']):raise RuntimeError('Browser regressions failed')
+        if len(parsed.get('results',[])) != len(cases)+17 or not all(result.get('passed') for result in parsed['results']):raise RuntimeError('Browser regressions failed')
         print(output)
     finally:subprocess.run(cli+['close'],cwd=ROOT,capture_output=True)

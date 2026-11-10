@@ -20,8 +20,9 @@ export function parseOtp(message: string, sender = '') {
   const bare = /^[A-Z0-9-]{4,12}$/i.test(text.trim()) && /\d/.test(text);
   if (!labels.length && !bare) return null;
   if (/\b(?:promo|discount|coupon|tracking|referral|order) code\b/i.test(text) && !/\b(?:otp|one[ -]?time|verification|authentication|security code)\b/i.test(text)) return null;
-  // Explicit card suffixes, currency amounts, references and bank warning phrases are not codes.
+  // Request dates, card suffixes, amounts, references and bank warnings are not codes.
   const details = [...text.matchAll(/\bOTPs\s+are\s+(?:SECRET|CONFIDENTIAL)\b|\b(?:card|account|a\/c)(?:\s+(?:number|no\.?|ending|ends|in|with|xx+)|[ *xX:-]){0,8}\s*\d{4}\b|(?:\bINR\b|\bRs\.?|₹|\bUSD\b|\$)\s*[\d,]+(?:\.\d+)?|\b(?:ref(?:erence)?|txn|transaction)\s*(?:id|no\.?|number)\s*[:#-]?\s*[A-Z0-9-]+/ig)];
+  details.push(...text.matchAll(/\b\d{1,2}\s+(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4}\b|\b\d{4}-\d{2}-\d{2}(?:T[\d:.]+Z?)?\b/ig));
   const tokens = [...text.matchAll(/\b[A-Z0-9]{4,12}(?:-[A-Z0-9]{3,6})?\b/ig)]
     .filter(m => (/\d/.test(m[0]) || (/^[A-Z]{4,12}$/.test(m[0]) && !BRAND.test(m[0]) && !/^(YOUR|THIS|THAT|VALID|NEVER|SHARE|WITH|ANYONE|PLEASE|ENTER|ONLY|MINUTES|SECONDS|PASSWORD|SECURITY|CONFIRM|REQUEST|RECEIVED|IGNORE|LOGIN|RESET|FROM)$/.test(m[0]))) &&
       (!/^\d+$/.test(m[0]) || m[0].length <= 8) && !labels.some(label => m.index! >= label.index! && m.index! < label.index! + label[0].length));

@@ -12,6 +12,12 @@ test('email excerpts keep exact codes and omit unrelated footer text',()=>{
   const f=fixture();const excerpt=f.context.otpMailExcerpt('Your Contoso verification code','Use this code to sign in\n\n246810\n\nThe code is valid for 5 minutes.\n\nUnrelated long footer 998877 invoice');
   expect(excerpt).not.toContain('998877');expect(parseOtp(excerpt)?.code).toBe('246810');
 });
+test('AgentMail plain-text excerpt preserves one OTP despite its request date',()=>{
+  const f=fixture();
+  const excerpt=f.context.otpMailExcerpt('246810 is your verification code','246810 is your OTP code for AgentMail.\n\nDo not share this with anyone.\n\nIt was requested at 10 November 2026, 09:16 UTC. If you did not request this, please ignore this email.');
+  expect(parseOtp(excerpt)?.code).toBe('246810');
+  expect(parseOtp(excerpt)?.candidateCount).toBe(1);
+});
 test('HTML email is converted to text without scripts or URLs as executable content',()=>{
   const f=fixture();const text=f.context.otpMailText({mimeType:'text/html',body:{data:Buffer.from('<style>hidden</style><p>Your verification code</p><div>246810</div><script>evil()</script>').toString('base64url')}},data=>Buffer.from(data,'base64url').toString('utf8'));
   expect(text).not.toContain('evil');expect(text).not.toContain('hidden');expect(parseOtp(f.context.otpMailExcerpt('',text))?.code).toBe('246810');

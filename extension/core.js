@@ -37,12 +37,14 @@ export function fillLoginCode(code, expectedOrigin, automatic = false) {
     if ((code === null ? cells.length >= 4 && cells.length <= 10 : cells.length === code.length) && cells.every(i => i.form === cells[0].form) && cells.some(marked)) targets=cells;
   }
   if (!targets.length) return {ok:false,reason:'Choose one clear code field on the page, or use Copy code.'};
-  const formContext=targets[0].form?.innerText||'';
-  if(/log[ -]?in|sign[ -]?in|otp verification|payment|transaction|merchant|purchase|withdraw|bank transfer/i.test(formContext))context=formContext;
+  const challenge=/log[ -]?in|sign[ -]?in|otp verification|authenticate|(?:otp|\bcode\b)[\s\S]{0,80}\bsent\b|\benter\b[^\n]{0,80}\b(?:otp|(?:\d[ -]?digit |verification |security )?code)\b/i;
+  const loginPage=/log[ -]?in|sign[ -]?in/i.test(document.title)||/(?:^|\/)(?:auth|login|signin)(?:\/|$)/i.test(location.pathname);
+  const formContext=(loginPage?targets[0].closest('[role="dialog"],dialog'):null)?.innerText||targets[0].form?.innerText||'';
+  if(challenge.test(formContext)||/payment|transaction|merchant|purchase|withdraw|bank transfer/i.test(formContext))context=formContext;
   payment=/payment|transaction|merchant|purchase|withdraw|bank transfer/i.test(context);
   if(automatic&&automatic.expectedPayment!==undefined&&automatic.expectedPayment!==payment)return {ok:false,reason:'The verification context changed.'};
   if (code === null || automatic) {
-    if (/reset password|recover.*account|withdraw|bank transfer/i.test(context) || (payment ? !paymentMode : !/log[ -]?in|sign[ -]?in|otp verification/i.test(context))) return {ok:false,reason:'Use manual fill for this verification.'};
+    if (/reset.*password|password.*reset|recover.*account|withdraw|bank transfer/i.test(context) || (payment ? !paymentMode : !challenge.test(context))) return {ok:false,reason:'Use manual fill for this verification.'};
     if(targets.some(input=>input.value))return {ok:false,reason:'The code field already has a value.'};
     if(code === null)return {ok:true,fields:targets.length,payment};
   }
