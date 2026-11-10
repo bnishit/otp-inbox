@@ -32,6 +32,26 @@ test('unclear OTP formats remain reviewable and codes are hidden from previews',
   expect(parseOtp('Microsoft security code: ABCDEF')?.preview).not.toContain('ABCDEF');
   expect(parseOtp('Amazon OTP: 123456')?.preview).not.toContain('123456');
 });
+test('request timestamps do not become extra codes, while real four-digit codes remain valid', () => {
+  for (const date of ['10 November 2026, 09:16 UTC', '2026-11-10T09:16:00Z']) {
+    const parsed = parseOtp('246810 is your OTP code for AgentMail.\nDo not share this with anyone.\nIt was requested at ' + date + '.');
+    expect(parsed?.candidateCount).toBe(1); expect(parsed?.code).toBe('246810');
+  }
+  expect(parseOtp('Your verification code is 2026')?.code).toBe('2026');
+  expect(parseOtp('OTP: 246810 and 135790. Requested at 10 November 2026')?.code).toBeNull();
+});
+test('Aadhaar masked identity and UIDAI footer are not extra OTPs', () => {
+  for (const agency of ['NIC', 'Dir of Income Tax']) {
+    const message = '246810 is OTP for Aadhaar (XX1234) (valid for 10 mins) at ' + agency + '. Mandatory Biometric update for age group 5 to 17 is free of cost -UIDAI';
+    const parsed = parseOtp(message, 'AD-ADHAAR-T');
+    expect(parsed?.code).toBe('246810'); expect(parsed?.candidateCount).toBe(1);
+    expect(parsed?.serviceHint).toBe('aadhaar'); expect(parsed?.expiresIn).toBe(600000);
+    expect(parsed?.preview).not.toContain('246810'); expect(parsed?.preview).not.toContain('XX1234');
+  }
+  expect(parseOtp('OTP for Aadhaar (XX1234). Mandatory Biometric update -UIDAI')?.code).toBeNull();
+  expect(parseOtp('246810 and 135790 are OTP for Aadhaar (XX1234) -UIDAI')?.code).toBeNull();
+  expect(parseOtp('Your verification code is XX1234')?.code).toBe('XX1234');
+});
 test('phone key is ingest-only and unauthorized agents are rejected', async () => {
   const f = fixture();
   expect((await f.post('recent', {}, ingest)).status).toBe(401);

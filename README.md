@@ -15,15 +15,15 @@ The browser and SMS observation pilot is included in `main` ([merged PR #5](http
 | Follow an email sign-in link | Show an approved link for an explicit open action | Exact sender/destination rules; never automatically open arbitrary SMS URLs |
 | Choose payment behavior | Owner can separately save manual, fill, or fill-and-submit | Off by default; filling alone may authorize a charge on some pages; no transfer/withdrawal automation |
 | Let an agent finish a login | List → wait → matched claim through MCP or REST | Every reader can access the deployment; OTP retrieval is not payment authorization |
-| Compare AI message understanding | Optional SMS-only AI observation classifies and extracts beside the current parser | Off by default for new installs; sends whole SMS to OpenAI; cannot drive fills or actions |
+| Read varied SMS/email codes with AI | Optional Decisions selection chooses a literal candidate; guarded repair learns only from synthetic regressions | Off by default; requires actual API evaluation before activation; action permissions stay separate |
 
-No hosted account or permanent code database. The core bridge needs no AI key; optional [AI observation](docs/sms-observation.md) needs your OpenAI key and API usage. MIT licensed.
+No hosted account or permanent code database. The core bridge needs no AI key; optional [AI extraction and repair](docs/sms-observation.md) needs your OpenAI key and API usage. MIT licensed.
 
 ## Evidence and direction
 
 The maintainer's running pilot has an observed Blinkit automatic SMS login and an owner-reported successful Amazon purchase OTP test. The Amazon report is user confirmation, not an independently captured fill-and-submit trace. Local regression coverage is 87 Bun tests, with separate synthetic browser checks. Native OS banner delivery still needs a coordinated live check. This does not prove every website, bank, phone or client works.
 
-A 60-message synthetic [benchmark](benchmarks/README.md) scored the existing parser 48/60 and a single AI Responses call 59/60 exact code-or-null results. It is one hand-written set, not live accuracy. SMS AI observation is enabled on the maintainer's instance; AI does not select production fill codes. Receipt categories, transaction lookups and named message automations are the [next product direction](docs/product-direction.md), not shipped actions.
+A 60-message synthetic [benchmark](benchmarks/README.md) scored the existing parser 48/60 and a single AI Responses call 59/60 exact code-or-null results. It is one hand-written set, not live accuracy. The Decisions extraction and guarded-repair implementation is under validation; it is not activated on the maintainer instance. The earlier production pilot remains SMS observation only. Receipt categories, transaction lookups and named message automations are the [next product direction](docs/product-direction.md), not shipped actions.
 
 ## Why it exists
 
@@ -78,8 +78,8 @@ Do the work, not just explain the steps. I will handle the phone taps.
 
 7. Install the unpacked Chrome helper when I want desktop filling. Reuse its
    saved connection; explain the optional website permission and site opt-outs.
-   Payment behavior defaults off: I choose it separately. AI observation is also
-   off unless I opt in to sending SMS text to OpenAI. Follow the browser and
+   Payment behavior defaults off: I choose it separately. AI extraction is also
+   off unless I opt in to sending captured SMS/email text to OpenAI. Follow the browser and
    SMS-observation guides; never assume universal site coverage.
 
 8. Verify capture -> metadata lookup -> matching claim without printing codes.
@@ -143,7 +143,7 @@ Give your agent the [standing retrieval rule](examples/agent-instructions.md) on
 - Metadata lookup hides codes; claim returns the literal value only after selection. Unclear multiple tokens are held for review.
 - One client reserves an entry until expiry; same-client retry can recover a lost response.
 - Phone and mailbox keys are write-only; agents have separate reader keys. Every reader can access the whole deployment, not just one account.
-- No AI-controlled filling, billing, public signup, multi-tenancy or outbound broadcast. Optional SMS AI observation does not change inbox decisions. Inbox waiting is long polling; Gmail push is an inbound notification.
+- No AI-generated code execution, billing, public signup, multi-tenancy or outbound broadcast. Optional Decisions extraction selects a supplied literal; it does not grant browser-action permissions. The older SMS observation mode does not change inbox decisions. Inbox waiting is long polling; Gmail push is an inbound notification.
 
 ## Limits you should know before connecting accounts
 

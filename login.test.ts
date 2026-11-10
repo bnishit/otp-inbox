@@ -24,6 +24,11 @@ test('query login links are supported only by their explicit rule',()=>{
   expect(parseLoginLink('Magic link: '+url,rule.sender,'example.test',[query])?.url).toBe(url);
   expect(parseLoginLink('Magic link: '+url+'#other',rule.sender,'example.test',[query])?.url).toBeNull();
 });
+test('OTP footer URLs are not mistaken for login links; explicit or configured mixed links remain visible',()=>{
+ expect(parseLoginLink('Your verification code is 246810. Privacy: https://example.test/privacy',rule.sender,'example.test',[rule])).toBeNull();
+ expect(parseLoginLink('Your code is 246810. Sign in: https://unknown.example.test/signin',rule.sender,'example.test',[rule])?.reason).toBe('unsupported_login_link');
+ expect(parseLoginLink('Your one-time code is 246810. '+link,rule.sender,'example.test',[rule])?.url).toBe(link);
+});
 test('URL redaction hides path, query, fragment and all-letter secrets as whole units',()=>{
   for(const url of [link,'https://example.test/onlyletters?token=letters#secret','http://example.test/123456','www.example.test/alphabetic'])expect(withoutUrls('Sign in '+url)).toBe('Sign in [link hidden]');
 });

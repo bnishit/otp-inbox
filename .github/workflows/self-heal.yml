@@ -1,0 +1,113 @@
+name: Guarded OTP format repair
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 */6 * * *'
+permissions:
+  contents: read
+concurrency:
+  group: otp-format-repair
+  cancel-in-progress: false
+jobs:
+  diagnose:
+    if: github.event_name == 'workflow_dispatch' || vars.OTP_SELF_HEAL_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      repair: ${{ steps.evaluate.outputs.repair }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.11'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: bun install --frozen-lockfile
+      - id: incident
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          OTP_BRIDGE_ORIGIN: ${{ secrets.OTP_BRIDGE_ORIGIN }}
+          OTP_DIAGNOSTICS_TOKEN: ${{ secrets.OTP_DIAGNOSTICS_TOKEN }}
+        run: |
+          bun -e '
+            let needed=process.env.EVENT_NAME==="workflow_dispatch";
+            if(!needed){
+              const origin=new URL(process.env.OTP_BRIDGE_ORIGIN||"");
+              if(origin.protocol!=="https:")throw Error("diagnostics_configuration_required");
+              const r=await fetch(origin.origin+"/v1/observation",{method:"POST",headers:{authorization:"Bearer "+process.env.OTP_DIAGNOSTICS_TOKEN,"content-type":"application/json"},body:"{}",redirect:"error",signal:AbortSignal.timeout(10000)});
+              if(!r.ok)throw Error("diagnostics_unavailable");
+              const d=await r.json();
+              if(d.blocked_until&&Date.parse(d.blocked_until)>Date.now())throw Error("credits_exhausted_not_a_format_bug");
+              needed=d.mode==="decisions"&&((d.counts?.ai_uncertain||0)+(d.counts?.failed||0)>0);
+            }
+            const fs=await import("node:fs");fs.appendFileSync(process.env.GITHUB_OUTPUT,"needed="+needed+"\n");
+          '
+      - id: evaluate
+        if: steps.incident.outputs.needed == 'true'
+        env:
+          OPENAI_API_KEY: ${{ secrets.OTP_FORMAT_OPENAI_KEY }}
+        run: |
+          if bun run benchmarks/verify.ts --out /tmp/otp-evaluation.json; then
+            echo 'repair=false' >> "$GITHUB_OUTPUT"
+          else
+            bun run scripts/self-heal.ts /tmp/otp-evaluation.json
+            echo 'repair=true' >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.evaluate.outputs.repair == 'true'
+        run: |
+          bun test
+          python3 -m unittest discover -s scripts -p '*_test.py'
+          python3 scripts/audit.py
+          python3 scripts/browser-check.py
+      - if: steps.evaluate.outputs.repair == 'true'
+        env:
+          OPENAI_API_KEY: ${{ secrets.OTP_FORMAT_OPENAI_KEY }}
+        run: |
+          bun run benchmarks/verify.ts --out /tmp/otp-repaired-evaluation.json
+          bun run benchmarks/verify.ts --holdout --out /tmp/otp-holdout-evaluation.json
+      - if: steps.evaluate.outputs.repair == 'true'
+        run: |
+          test "$(git diff --name-only)" = 'otp-examples.json'
+          bun -e 'import {validateExamples} from "./otp-ai";validateExamples(await Bun.file("otp-examples.json").json())'
+      - if: steps.evaluate.outputs.repair == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-synthetic-examples
+          path: otp-examples.json
+  merge:
+    needs: diagnose
+    if: needs.diagnose.outputs.repair == 'true'
+    permissions:
+      contents: write
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: verified-synthetic-examples
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          test "$(git diff --name-only)" = 'otp-examples.json'
+          test "$(gh api "repos/$GH_REPO/branches/main" --jq .commit.sha)" = "$GITHUB_SHA"
+          git config user.name 'OTP format repair'
+          git config user.email 'otp-format-repair@users.noreply.github.com'
+          git switch -c "self-heal/otp-${GITHUB_RUN_ID}"
+          git add otp-examples.json
+          git commit -m 'Improve OTP selection with verified synthetic examples'
+          gh auth setup-git
+          git push --set-upstream origin HEAD
+          pr=$(gh pr create --title 'Heal OTP format selection' --body 'Changes synthetic reference examples only. All offline tests and the 100-case live Decisions evaluation passed before this proposal. No captured messages, codes, accounts, authentication logic or browser permissions are changed.')
+          gh pr merge "$pr" --auto --squash --match-head-commit "$(git rev-parse HEAD)"

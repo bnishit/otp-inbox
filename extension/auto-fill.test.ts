@@ -78,3 +78,17 @@ test('saved payment automation accepts one issuer-matched payment code and reche
  expect(automaticCandidate([paymentItem],{...global,payment:true,payments:'submit'},since)?.id).toBe('sms');
  expect(automaticCandidate([{...paymentItem,preview:'Other issuer payment code'}],{...global,payment:true,payments:'submit'},since)).toBeNull();
 });
+
+test('code-field focus keeps the original request time; resend starts a fresh boundary',()=>{
+ let clock=1000,check:any;
+ const handlers:any={},messages:any[]=[];
+ const document={visibilityState:'visible',addEventListener:(name:string,fn:any)=>{handlers[name]=fn;}};
+ const chrome={runtime:{sendMessage:(message:any)=>{messages.push(message);return Promise.resolve();}}};
+ const source=readFileSync(new URL('./automatic-page.js',import.meta.url),'utf8');
+ new Function('document','window','chrome','setInterval','Date',source)(document,{},chrome,(fn:any)=>{check=fn;},{now:()=>clock});
+ const click=(codeField:boolean)=>handlers.click({isTrusted:true,target:{closest:()=>codeField?{matches:()=>true}:null}});
+ clock=2000;click(false);check();expect(messages.at(-1).requestAt).toBe(2000);
+ clock=3000;click(true);check();expect(messages.at(-1).requestAt).toBe(2000);
+ clock=4000;handlers.keydown({isTrusted:true,key:'Enter',target:{closest:()=>({matches:()=>true})}});check();expect(messages.at(-1).requestAt).toBe(2000);
+ clock=5000;click(false);check();expect(messages.at(-1).requestAt).toBe(5000);
+});
