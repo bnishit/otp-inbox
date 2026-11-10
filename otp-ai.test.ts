@@ -27,7 +27,7 @@ test('plain-text, HTML and multipart email capture preserve the code through the
 test('model output only selects a supplied literal; invalid, refused, ambiguous and uncertain answers cannot create a code',()=>{
  const text='OTP 246810. Reference 135790.',request=codeDecision(text)!;
  expect(readCodeDecision(answer(text,'246810'),request).code).toBe('246810');
- for(const extra of [{choice:'c999'},{choice:'invented'},{type:'refusal'},{confidence:NaN}])expect(()=>readCodeDecision(answer(text,'246810',extra),request)).toThrow();
+ for(const extra of [{choice:'c999'},{choice:'invented'},{type:'refusal'},{confidence:NaN},{confidence:2},{confidence:-1}])expect(()=>readCodeDecision(answer(text,'246810',extra),request)).toThrow();
  expect(readCodeDecision(answer(text,'246810',{confidence:.6}),request).code).toBeNull();
  expect(readCodeDecision(answer(text,null,{choice:'ambiguous'}),request).reason).toBe('multiple_codes');
 });

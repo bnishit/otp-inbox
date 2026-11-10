@@ -19,7 +19,7 @@ export function readCodeDecision(data:any,request:NonNullable<ReturnType<typeof 
  const answers=data?.answers;
  if(!Array.isArray(answers)||answers.length!==2)throw Error('invalid_answer');
  const code=answers.find((a:any)=>a.name==='code'),purpose=answers.find((a:any)=>a.name==='purpose');
- if(code?.type!=='choice'||purpose?.type!=='choice'||!Number.isFinite(code.confidence)||!Number.isFinite(purpose.confidence))throw Error('unresolved_answer');
+ if(code?.type!=='choice'||purpose?.type!=='choice'||[code.confidence,purpose.confidence].some(v=>!Number.isFinite(v)||v<0||v>1))throw Error('unresolved_answer');
  if(code.confidence<0.9||purpose.confidence<0.9)return {code:null,reason:'ai_uncertain',purpose:null};
  if(!['login','payment','recovery','delivery','none'].includes(purpose.choice))throw Error('invalid_purpose');
  if(code.choice==='ambiguous')return {code:null,reason:'multiple_codes',purpose:purpose.choice};
