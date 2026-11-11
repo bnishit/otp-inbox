@@ -45,7 +45,7 @@ def call(path, data):
 
 
 TOOLS = json.loads((ROOT / 'tools.json').read_text())
-ROUTES = {'otp_list_recent': '/v1/recent', 'otp_wait_for': '/v1/recent', 'otp_claim': '/v1/claim'}
+ROUTES = {'otp_list_recent': '/v1/recent', 'otp_wait_for': '/v1/recent', 'otp_claim': '/v1/claim', 'otp_history': '/v1/history'}
 
 
 def mcp():

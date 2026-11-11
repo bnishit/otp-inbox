@@ -1,4 +1,5 @@
 import { timingSafeEqual, createHash } from 'node:crypto';
+import {createAuditStore, type AuditStore, type AuditEvent} from './audit';
 import {createSmsShadow,type SmsShadow} from './sms-shadow';
 import {createOtpResolver,createExampleLoader,type OtpResolver} from './otp-ai';
 import {createMcp} from './mcp';
@@ -43,7 +44,7 @@ type Entry = { capture_method: 'iphone' | 'android' | 'email_poll' | 'gmail_push
   candidateCount: number; confidence: string; preview: string; received: number; expires: number; claimedBy?: string;
   mailbox: string | null; link: string | null; linkOrigin: string | null; reviewReason: string | null; kind: 'code' | 'link' };
 
-export function createBridge(ingestKey: string, clients: Record<string, string>, now = Date.now, emailSources: Record<string, EmailSource> = {}, linkRules: LoginLinkRule[] = [], smsShadow?:SmsShadow, resolver?:OtpResolver, diagnosticsToken='') {
+export function createBridge(ingestKey: string, clients: Record<string, string>, now = Date.now, emailSources: Record<string, EmailSource> = {}, linkRules: LoginLinkRule[] = [], smsShadow?:SmsShadow, resolver?:OtpResolver, diagnosticsToken='', audit?: AuditStore) {
   if(diagnosticsToken&&diagnosticsToken.length<32)throw Error('Diagnostic credential is too short');
   validateLinkRules(linkRules);
   for (const source of Object.values(emailSources)) {
@@ -67,6 +68,17 @@ export function createBridge(ingestKey: string, clients: Record<string, string>,
     sender: withoutUrls(entry.sender) || null, received_at: new Date(entry.received).toISOString(), expires_at: new Date(entry.expires).toISOString(),
     status: entry.claimedBy ? (entry.claimedBy === owner ? 'claimed_by_you' : 'claimed') : (entry.code || entry.link) ? 'available' : 'needs_review',
     candidate_count: entry.candidateCount, confidence: entry.confidence, preview: entry.preview });
+  const record = async (event: AuditEvent['event'], entry?: Partial<Entry>, client: string | null = null, reason: string | null = null) => {
+    if (!audit) return true;
+    try {
+      await audit.append({event, occurred_at: new Date(now()).toISOString(), entry_id: entry?.id || null, client,
+        service: entry?.serviceHint || null, channel: entry?.channel || null, account: entry?.account || null,
+        capture_method: entry?.capture_method || null, received_at: Number.isFinite(entry?.received) ? new Date(entry!.received!).toISOString() : null,
+        expires_at: Number.isFinite(entry?.expires) ? new Date(entry!.expires!).toISOString() : null, reason});
+      return true;
+    } catch { return false; }
+  };
+  const unavailable = () => reply({error: 'audit_unavailable', retryable: true}, 503);
   return async (req: Request): Promise<Response> => {
     const path = new URL(req.url).pathname;
     if (req.method === 'GET' && path === '/health') return reply({ status: 'ok', service: 'otp-inbox', version: 3 });
@@ -86,6 +98,24 @@ export function createBridge(ingestKey: string, clients: Record<string, string>,
       if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error();
     } catch { return reply({ error: 'invalid_json' }, 400); }
     cleanup();
+    if (path === '/v1/history') {
+      if (!audit) return reply({error: 'history_not_configured'}, 503);
+      const service = typeof data.service === 'string' ? data.service.trim().toLowerCase() : '';
+      const account = typeof data.account === 'string' ? data.account.trim().toLowerCase() : '';
+      const channel = data.channel === undefined ? '' : String(data.channel);
+      const since = data.since === undefined ? 0 : Date.parse(String(data.since));
+      const before = data.before === undefined ? '9223372036854775807' : String(data.before);
+      const limit = data.limit === undefined ? 50 : Number(data.limit);
+      if (service.length > 100 || account.length > 254 || !['', 'sms', 'email'].includes(channel) || !Number.isFinite(since) ||
+          !/^\d{1,19}$/.test(before) || BigInt(before) > 9223372036854775807n || !Number.isInteger(limit) || limit < 1 || limit > 100)
+        return reply({error: 'invalid_filter'}, 400);
+      try {
+        const rows = await audit.history({service, account, channel, since: new Date(since).toISOString(), before, limit});
+        const items = rows.slice(0, limit);
+        return reply({items, next_cursor: rows.length > limit ? items.at(-1).id : null,
+          evidence: 'Bridge receipt and retrieval only; not proof of successful authentication or human identity.'});
+      } catch { return unavailable(); }
+    }
     if (path === '/v1/observation') return reply(resolver?.snapshot()||smsShadow?.snapshot()||{enabled:false,mode:'observe_only'});
     if (path === '/v1/source-heartbeat') {
       const checked = Date.parse(String(data.checked_at));
@@ -99,13 +129,18 @@ export function createBridge(ingestKey: string, clients: Record<string, string>,
     if (path === '/v1/sms' || path === '/v1/email') {
       if (typeof data.message !== 'string') return reply({ error: 'message_required' }, 400);
       const received = typeof data.received_at === 'string' ? Date.parse(data.received_at) : NaN;
-      if (!Number.isFinite(received) || received > now() + 15_000 || received <= now() - RETENTION) return reply({ accepted: false, reason: 'stale_or_missing_timestamp' });
       const sender = typeof data.sender === 'string' ? data.sender.slice(0, 160) : '';
       const channel = path === '/v1/email' ? 'email' as const : 'sms' as const;
       const source = emailSource?.[1];
-      const reject = (reason: string) => { if (emailSource) count(emailSource[0], reason); return reply({accepted:false, reason}); };
       const mailbox = source?.email.toLowerCase() || null;
       let account = mailbox;
+      const reject = async (reason: string, status = 200) => {
+        if (emailSource) count(emailSource[0], reason);
+        return await record('rejected', {channel, account: mailbox, received,
+          serviceHint: (data.message as string).match(BRAND)?.[1]?.toLowerCase() || null}, null, reason)
+          ? reply({accepted:false, reason}, status) : unavailable();
+      };
+      if (!Number.isFinite(received) || received > now() + 15_000 || received <= now() - RETENTION) return reject('stale_or_missing_timestamp');
       if (source && data.recipient !== undefined) {
         account = emailAddress(data.recipient);
         if (!account || data.recipient_conflict === true) return reject('ambiguous_recipient');
@@ -138,14 +173,18 @@ export function createBridge(ingestKey: string, clients: Record<string, string>,
       const kind = login ? 'link' as const : 'code' as const;
       const link = !mixed ? login?.url || null : null;
       const reviewReason = mixed ? 'multiple_secret_types' : login?.reason || aiReason;
-      if (entries.size >= 500 || seen.size >= 1000) return reply({ accepted: false, reason: 'capacity' }, 429);
+      if (entries.size >= 500 || seen.size >= 1000) return reject('capacity', 429);
       const expires = Math.min(received + Math.min(details.expiresIn, login?.expiresIn ?? RETENTION), now() + RETENTION);
       if (expires <= now()) return reject('expired');
       const entry: Entry = { capture_method: channel === 'sms' ? (data.capture_method === 'android' ? 'android' : 'iphone') : data.capture_method === 'gmail_push' ? 'gmail_push' : 'email_poll', channel, account, id: crypto.randomUUID(), message: withoutUrls(data.message), sender, code: login ? null : details.code,
         mailbox, link, linkOrigin: link ? login!.origin : null, reviewReason, kind,
         serviceHint: login?.service || details.serviceHint, candidateCount: login ? login.candidateCount + (mixed ? details.candidateCount : 0) : details.candidateCount, confidence: login ? 'login_link' : details.confidence,
         preview: login ? 'Sign-in link. Secret hidden.' : details.preview, received, expires };
-      entries.set(entry.id, entry); seen.set(digest, now() + RETENTION);
+      seen.set(digest, now() + RETENTION);
+      if (!await record('received', entry, null, reviewReason || ((entry.code || entry.link) ? 'available' : 'needs_review'))) {
+        seen.delete(digest); return unavailable();
+      }
+      entries.set(entry.id, entry);
       if (emailSource) count(emailSource[0], reviewReason || 'accepted');
       const expiryTimer = setTimeout(() => { entries.delete(entry.id); wake(); }, expires - now()); expiryTimer.unref();
       const replayTimer = setTimeout(() => seen.delete(digest), RETENTION); replayTimer.unref();
@@ -190,12 +229,17 @@ export function createBridge(ingestKey: string, clients: Record<string, string>,
     }
     if (path === '/v1/claim') {
       const entry = entries.get(String(data.id || ''));
-      if (!entry) return reply({ error: 'not_found_or_expired' }, 404);
-      if (entry.claimedBy && entry.claimedBy !== owner) return reply({ error: 'claimed_by_another_agent' }, 409);
-      if (!entry.code && !entry.link) return reply({ error: entry.reviewReason || 'ambiguous_code_requires_review', candidate_count: entry.candidateCount }, 409);
+      const denied = async (reason: string, status = 409) => await record('claim_denied', entry || (/^[a-f0-9-]{36}$/i.test(String(data.id)) ? {id: String(data.id)} : undefined), owner!, reason)
+        ? reply({error: reason}, status) : unavailable();
+      if (!entry) return denied('not_found_or_expired', 404);
+      if (entry.claimedBy && entry.claimedBy !== owner) return denied('claimed_by_another_agent');
+      if (!entry.code && !entry.link) return denied(entry.reviewReason || 'ambiguous_code_requires_review');
       const service = typeof data.service === 'string' ? data.service.trim().toLowerCase() : '';
-      if (service && !(entry.sender + ' ' + entry.message + ' ' + (entry.serviceHint || '')).toLowerCase().includes(service)) return reply({ error: 'service_mismatch' }, 409);
+      if (service && !(entry.sender + ' ' + entry.message + ' ' + (entry.serviceHint || '')).toLowerCase().includes(service)) return denied('service_mismatch');
+      const retry = !!entry.claimedBy;
       entry.claimedBy = owner;
+      if (!await record('claimed', entry, owner!, retry ? 'same_client_retry' : 'retrieved')) return unavailable();
+      if (entry.expires <= now()) return denied('not_found_or_expired', 404);
       wake();
       // Repeating the same claim by this client recovers a lost response; other clients are excluded.
       return reply({ ...metadata(entry, owner!), ...(entry.link ? {link:entry.link} : {code:entry.code}) });
@@ -211,7 +255,8 @@ if (import.meta.main) {
   const emailSources = JSON.parse(Bun.env.OTP_EMAIL_SOURCES || '{}');
   const resolver=Bun.env.OTP_AI_MODE==='resolve'?createOtpResolver({key:Bun.env.OTP_AI_OPENAI_KEY||'',loadExamples:Bun.env.OTP_POLICY_URL?createExampleLoader(Bun.env.OTP_POLICY_URL):undefined}):undefined;
   const shadow=resolver?undefined:createSmsShadow({enabled:Bun.env.OTP_AI_SHADOW==='true',key:Bun.env.OTP_AI_OPENAI_KEY||''});
-  const bridge = createBridge(ingestKey, clients, Date.now, emailSources, validateLinkRules(JSON.parse(Bun.env.OTP_LOGIN_LINK_RULES || '[]')),shadow,resolver,Bun.env.OTP_DIAGNOSTICS_TOKEN||'');
+  const audit = Bun.env.OTP_AUDIT_DATABASE_URL ? await createAuditStore(Bun.env.OTP_AUDIT_DATABASE_URL) : undefined;
+  const bridge = createBridge(ingestKey, clients, Date.now, emailSources, validateLinkRules(JSON.parse(Bun.env.OTP_LOGIN_LINK_RULES || '[]')),shadow,resolver,Bun.env.OTP_DIAGNOSTICS_TOKEN||'',audit);
   const mcp = createMcp(bridge, clients);
   const push = Bun.env.GMAIL_PUSH_CONFIG ? createGmailPush(JSON.parse(Bun.env.GMAIL_PUSH_CONFIG),emailSources,bridge) : null;
   if (push) await push.start();

@@ -1,7 +1,7 @@
 import {timingSafeEqual} from 'node:crypto';
 import tools from './tools.json';
 
-const routes: Record<string,string> = {otp_list_recent:'/v1/recent',otp_wait_for:'/v1/recent',otp_claim:'/v1/claim'};
+const routes: Record<string,string> = {otp_list_recent:'/v1/recent',otp_wait_for:'/v1/recent',otp_claim:'/v1/claim',otp_history:'/v1/history'};
 const json = (body:unknown,status=200) => Response.json(body,{status,headers:{'cache-control':'no-store'}});
 
 export function createMcp(bridge:(r:Request)=>Promise<Response>, clients:Record<string,string>) {
