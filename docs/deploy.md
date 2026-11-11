@@ -76,6 +76,7 @@ Each agent uses its own reader key. Every reader has inbox-wide access; separate
 | `OTP_CLIENT_TOKENS` | JSON object of unique client name → reader key |
 | `OTP_EMAIL_SOURCES` | JSON object of source ID → `{email,label,token}`; each write-only key binds one mailbox |
 | `GMAIL_PUSH_CONFIG` | Optional Gmail OAuth/Google Pub/Sub config; see push guide |
+| `OTP_AI_OPENROUTER_KEY` | Optional server-only OpenRouter key; used only when primary OpenAI credits are exhausted; same AI mode and limits |
 | `OTP_AUDIT_DATABASE_URL` | Optional Postgres URL for durable metadata history; use a private database with durable storage |
 | `PORT` | Host port; default 8787 |
 

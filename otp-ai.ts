@@ -1,4 +1,5 @@
 import {createHash} from 'node:crypto';
+import {createAiProvider} from './ai-provider';
 import {model} from './sms-ai';
 import examples from './otp-examples.json';
 
@@ -45,14 +46,14 @@ export function createExampleLoader(url:string,network=fetch,now=Date.now) {
   return current;
  };
 }
-export function createOtpResolver({key,network=fetch,now=Date.now,maxPerDay=1000,loadExamples}:{key:string;network?:typeof fetch;now?:()=>number;maxPerDay?:number;loadExamples?:()=>Promise<typeof examples>}) {
+export function createOtpResolver({key,openrouterKey,network=fetch,now=Date.now,maxPerDay=1000,loadExamples}:{key:string;openrouterKey?:string;network?:typeof fetch;now?:()=>number;maxPerDay?:number;loadExamples?:()=>Promise<typeof examples>}) {
  let day=new Date(now()).toISOString().slice(0,10),inFlight=0;
- let counts:Record<string,number>={},latencyMs=0,blockedUntil=0;
+ let counts:Record<string,number>={},latencyMs=0;
  const pending=new Map<string,Promise<any>>();
  const count=(name:string)=>{counts[name]=(counts[name]||0)+1;};
+ const provider=createAiProvider({key,openrouterKey,network,now,count});
  async function resolve(text:string) {
   if(!key||text.length>8192)return {code:null,reason:'ai_unavailable',purpose:null};
-  if(now()<blockedUntil){count('credits_blocked');return {code:null,reason:'ai_credits_exhausted',purpose:null};}
   let references=examples;
   try{if(loadExamples)references=await loadExamples();}catch{}
   const request=codeDecision(text,references);
@@ -66,27 +67,15 @@ export function createOtpResolver({key,network=fetch,now=Date.now,maxPerDay=1000
   const task=(async()=>{
    const started=now();
    try {
-    // One retry heals transient connection/rate-limit failures; both calls share one deadline.
-    const signal=AbortSignal.timeout(10000);
-    let response:Response|undefined;
-    for(let attempt=0;attempt<2;attempt++){
-     try {response=await network('https://api.openai.com/v1/decisions',{method:'POST',headers:{authorization:'Bearer '+key,'content-type':'application/json'},body:JSON.stringify(request.body),signal,redirect:'error',credentials:'omit',cache:'no-store'});}
-     catch{if(attempt||signal.aborted)throw Error('provider_unavailable');count('retried');continue;}
-     if(response.ok)break;
-     let providerCode='';try{providerCode=(await response.json() as any)?.error?.code||'';}catch{}
-     if(['credit_balance_exhausted','insufficient_quota'].includes(providerCode))throw Error('credits_exhausted');
-     if(attempt||![429,500,502,503,504].includes(response.status))throw Error('provider_unavailable');
-     count('retried');
-    }
-    const result=readCodeDecision(await response!.json(),request);count(result.reason||'resolved');return result;
+    const result=readCodeDecision(await provider.request('decisions',request.body),request);count(result.reason||'resolved');return result;
    }catch(error){
-    if(error instanceof Error&&error.message==='credits_exhausted'){blockedUntil=now()+300000;count('credits_exhausted');return {code:null,reason:'ai_credits_exhausted',purpose:null};}
+    if(error instanceof Error&&error.message==='credits_exhausted')return {code:null,reason:'ai_credits_exhausted',purpose:null};
     count('failed');return {code:null,reason:'ai_unavailable',purpose:null};
    }
    finally{inFlight--;latencyMs+=Math.max(0,now()-started);pending.delete(hash);}
   })();
   pending.set(hash,task);return task;
  }
- return {resolve,snapshot:()=>({enabled:!!key,mode:'decisions',model,window:day,in_flight:inFlight,max_per_day:maxPerDay,blocked_until:blockedUntil?new Date(blockedUntil).toISOString():null,counts:{...counts},total_latency_ms:latencyMs,retention:'aggregate counters only; no messages, codes or per-message results'})};
+ return {resolve,snapshot:()=>({enabled:!!key,mode:'decisions',model,window:day,in_flight:inFlight,max_per_day:maxPerDay,...provider.snapshot(),counts:{...counts},total_latency_ms:latencyMs,retention:'aggregate counters only; no messages, codes or per-message results'})};
 }
 export type OtpResolver=ReturnType<typeof createOtpResolver>;
