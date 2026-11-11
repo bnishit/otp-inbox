@@ -76,9 +76,10 @@ Each agent uses its own reader key. Every reader has inbox-wide access; separate
 | `OTP_CLIENT_TOKENS` | JSON object of unique client name → reader key |
 | `OTP_EMAIL_SOURCES` | JSON object of source ID → `{email,label,token}`; each write-only key binds one mailbox |
 | `GMAIL_PUSH_CONFIG` | Optional Gmail OAuth/Google Pub/Sub config; see push guide |
+| `OTP_AUDIT_DATABASE_URL` | Optional Postgres URL for durable metadata history; use a private database with durable storage |
 | `PORT` | Host port; default 8787 |
 
-Change private settings, run setup again without `--mailbox`, and update the host's variables to apply config edits. A redeploy resets inbox memory and claims. Local agent config uses `credentials_file` relative to its own config; `OTP_INBOX_TOKEN` in the process environment overrides that file.
+Change private settings, run setup again without `--mailbox`, and update the host's variables to apply config edits. A redeploy resets inbox memory and claims. Configured Postgres audit history survives; its tables are created on startup. On Railway, add Postgres with a volume and reference its `DATABASE_URL` in `OTP_AUDIT_DATABASE_URL`. A configured database must be reachable before the bridge starts. Receipt/claim audit writes must succeed before acceptance or secret release. Local agent config uses `credentials_file` relative to its own config; `OTP_INBOX_TOKEN` in the process environment overrides that file.
 
 ## Stop or revoke
 

@@ -1,6 +1,6 @@
 # Connect an agent once
 
-All clients use the same three tools: metadata lookup, wait, then claim. MCP (Model Context Protocol) is the shared way an agent calls those tools. A tool connection and a standing operating rule are separate: install both.
+Login uses metadata lookup, wait, then claim. `otp_history` reads optional durable receipt/retrieval metadata after inbox expiry. MCP (Model Context Protocol) is the shared way an agent calls those tools. A tool connection and a standing operating rule are separate: install both.
 
 ## Choose a connection
 
@@ -74,7 +74,7 @@ No authoritative public Instinct setup UI was established during preparation, so
 
 Setup brief:
 
-> Connect to my self-hosted OTP Inbox using its three documented tools and your dedicated reader credential from secure storage. Start with metadata lookup only. Keep the retrieval rule in your instructions, but never save codes. Use service, request time and exact email account to match before claim. Ask me only if the match or capture is unavailable.
+> Connect to my self-hosted OTP Inbox using its documented tools and your dedicated reader credential from secure storage. Start with metadata lookup only. Keep the retrieval rule in your instructions, but never save codes. Use service, request time and exact email account to match before claim. Ask me only if the match or capture is unavailable.
 
 ## Meta Muse
 

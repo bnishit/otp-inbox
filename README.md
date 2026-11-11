@@ -131,7 +131,7 @@ The iPhone's broad space trigger covers worded SMS, not every possible text. Ema
 [Full guide: Codex, Claude Code, ChatGPT Dot, Instinct, Meta Muse, generic MCP and REST](docs/agents.md).
 
 - **Local:** dependency-free Python MCP adapter over stdio, with a separate private config for each client.
-- **Remote:** authenticated JSON POST MCP at `/mcp`, or three REST operations. Clients must accept bearer authentication; no built-in OAuth server.
+- **Remote:** authenticated JSON POST MCP at `/mcp`, or the documented REST operations. Clients must accept bearer authentication; no built-in OAuth server.
 - **ChatGPT Dot:** owner-private Sites adapter included. Requires Sites access and its supported publish/plugin flow; not a turnkey OAuth endpoint for arbitrary ChatGPT connectors.
 - **Instinct / Muse:** secure connection recipes with limits stated. No claim that their native clients have been tested.
 
@@ -139,7 +139,7 @@ Give your agent the [standing retrieval rule](examples/agent-instructions.md) on
 
 ## What is deliberately small
 
-- Codes live in server memory for at most ten minutes, shortened by recognized validity. Originals remain in Gmail/Messages.
+- Codes live in server memory for at most ten minutes, shortened by recognized validity. Originals remain in Gmail/Messages. Optional Postgres history keeps receipt and retrieval metadata across restarts, without messages or secrets; see [history](docs/api.md#durable-history).
 - Metadata lookup hides codes; claim returns the literal value only after selection. Unclear multiple tokens are held for review.
 - One client reserves an entry until expiry; same-client retry can recover a lost response.
 - Phone and mailbox keys are write-only; agents have separate reader keys. Every reader can access the whole deployment, not just one account.

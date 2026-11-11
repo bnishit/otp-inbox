@@ -6,7 +6,7 @@ test('remote MCP authenticates discovery and reserves a claim to the same client
   const bridge=createBridge(phone,{codex,claude});const mcp=createMcp(bridge,{codex,claude});
   const rpc=async(method:string,params:any={},token=codex)=>{const r=(await mcp(new Request('https://inbox.example.test/mcp',{method:'POST',headers:{authorization:'Bearer '+token},body:JSON.stringify({jsonrpc:'2.0',id:1,method,params})})))!;return {status:r.status,body:await r.json()};};
   expect((await rpc('tools/list',{},phone)).status).toBe(401);
-  expect((await rpc('tools/list')).body.result.tools).toHaveLength(3);
+  expect((await rpc('tools/list')).body.result.tools).toHaveLength(4);
   expect((await rpc('initialize')).body.result.capabilities.tools).toEqual({});
   const receipt=await bridge(new Request('https://inbox.example.test/v1/sms',{method:'POST',headers:{authorization:'Bearer '+phone},body:JSON.stringify({message:'Contoso OTP: 246810',received_at:new Date().toISOString()})}));const id=(await receipt.json()).id;
   const recent=(await rpc('tools/call',{name:'otp_list_recent',arguments:{service:'Contoso'}})).body;
