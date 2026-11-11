@@ -253,8 +253,9 @@ if (import.meta.main) {
   const clients = JSON.parse(Bun.env.OTP_CLIENT_TOKENS || '{}');
   if (ingestKey.length < 32 || !Object.keys(clients).length || Object.values(clients).some(key => typeof key !== 'string' || key.length < 32)) throw new Error('OTP credentials are missing');
   const emailSources = JSON.parse(Bun.env.OTP_EMAIL_SOURCES || '{}');
-  const resolver=Bun.env.OTP_AI_MODE==='resolve'?createOtpResolver({key:Bun.env.OTP_AI_OPENAI_KEY||'',loadExamples:Bun.env.OTP_POLICY_URL?createExampleLoader(Bun.env.OTP_POLICY_URL):undefined}):undefined;
-  const shadow=resolver?undefined:createSmsShadow({enabled:Bun.env.OTP_AI_SHADOW==='true',key:Bun.env.OTP_AI_OPENAI_KEY||''});
+  const aiKeys={key:Bun.env.OTP_AI_OPENAI_KEY||'',openrouterKey:Bun.env.OTP_AI_OPENROUTER_KEY||''};
+  const resolver=Bun.env.OTP_AI_MODE==='resolve'?createOtpResolver({...aiKeys,loadExamples:Bun.env.OTP_POLICY_URL?createExampleLoader(Bun.env.OTP_POLICY_URL):undefined}):undefined;
+  const shadow=resolver?undefined:createSmsShadow({enabled:Bun.env.OTP_AI_SHADOW==='true',...aiKeys});
   const audit = Bun.env.OTP_AUDIT_DATABASE_URL ? await createAuditStore(Bun.env.OTP_AUDIT_DATABASE_URL) : undefined;
   const bridge = createBridge(ingestKey, clients, Date.now, emailSources, validateLinkRules(JSON.parse(Bun.env.OTP_LOGIN_LINK_RULES || '[]')),shadow,resolver,Bun.env.OTP_DIAGNOSTICS_TOKEN||'',audit);
   const mcp = createMcp(bridge, clients);
