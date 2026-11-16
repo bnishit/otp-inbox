@@ -4,7 +4,7 @@ The default bridge remains deterministic. `OTP_AI_SHADOW=true` keeps the older S
 
 ## How selection works
 
-The application enumerates literal code-shaped tokens from one message. Decisions selects one supplied candidate and a verification purpose, or selects no code / ambiguity. It cannot generate a new code. Both answers require confidence of at least 0.9. This is a conservative operating threshold, not a calibrated guarantee. There are at most 64 candidates and four active requests. Messages beyond the size/candidate limit remain with the rules path.
+The application enumerates literal code-shaped tokens from one message. Each candidate includes its literal and a bounded excerpt around a complete token occurrence, marked as untrusted message data. Decisions selects one supplied candidate and a verification purpose, or selects no code / ambiguity. It cannot generate a new code. Both answers require confidence of at least 0.9. This is a conservative operating threshold, not a calibrated guarantee. There are at most 64 candidates and four active requests. Messages beyond the size/candidate limit remain with the rules path.
 
 The selected literal is checked locally, redacted in metadata and retained only for the existing short-lived inbox. Account binding, service matching, expiry, claims, link authentication and browser action settings still apply. Approved code-plus-link messages remain review-only. Code notices with ordinary footer URLs are not mistaken for sign-in links.
 
