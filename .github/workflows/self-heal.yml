@@ -72,6 +72,7 @@ jobs:
         run: |
           bun run benchmarks/verify.ts --out /tmp/otp-repaired-evaluation.json
           bun run benchmarks/verify.ts --holdout --out /tmp/otp-holdout-evaluation.json
+          bun run benchmarks/verify.ts --safety --out /tmp/otp-safety-evaluation.json
       - if: steps.evaluate.outputs.repair == 'true'
         run: |
           test "$(git diff --name-only)" = 'otp-examples.json'

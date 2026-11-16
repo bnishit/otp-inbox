@@ -1,0 +1,17 @@
+{
+ "scope":"Synthetic action boundaries and false-positive checks; separate from the unchanged 100-case release corpus.",
+ "cases":[
+  {"id":"bare-greeting","channel":"sms","text":"Hello","expected":null},
+  {"id":"bare-warning-word","channel":"sms","text":"CONFIDENTIAL","expected":null},
+  {"id":"bare-word-with-secrecy-footer","channel":"email","text":"CONFIDENTIAL\nSupport note: do not forward this message.","expected":null},
+  {"id":"bare-word-with-warning","channel":"sms","text":"SECRET. Never share it.","expected":null},
+  {"id":"bare-phone-number","channel":"sms","text":"9876543210","expected":null},
+  {"id":"completed-security-change","channel":"email","text":"Your password was changed successfully. Reference 246810. Contact support if this was not you.","expected":null},
+  {"id":"future-update-notice","channel":"sms","text":"Please update your registered phone number before Friday. Request 135790 has been recorded.","expected":null},
+  {"id":"two-letter-codes","channel":"email","text":"Your login codes are abczxy and lmnpqr. Both are valid.","expected":null},
+  {"id":"beneficiary-is-not-transfer","channel":"sms","text":"Use OTP 246810 to add a new bank transfer beneficiary.","expected":"246810","purpose":"recovery"},
+  {"id":"transfer-is-money","channel":"sms","text":"Use OTP 135790 to authorise a bank transfer of INR 99.","expected":"135790","purpose":"payment"},
+  {"id":"phone-change-with-notice","channel":"sms","text":"OTP 001234 to change your registered phone number. Remember to keep your profile up to date.","expected":"001234","purpose":"recovery"},
+  {"id":"identity-with-update-notice","channel":"sms","text":"Identity verification code: 246810. Reminder: update your profile before next month.","expected":"246810","purpose":"login"}
+ ]
+}

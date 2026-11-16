@@ -3,15 +3,16 @@ import {codeCandidates,codeDecision,readCodeDecision,createOtpResolver,createExa
 import {createBridge} from './server';
 import original from './benchmarks/sms-fixtures.json';
 import common from './benchmarks/common-formats.json';
+import safety from './benchmarks/safety-formats.json';
 import {otpMailText,otpMailExcerpt} from './email/mail.js';
 
-const fixtures=[...original.cases.map(c=>({id:c.id,text:c.text,expected:c.expected.code,channel:'sms'})),...common.cases];
+const fixtures=[...original.cases.map(c=>({id:c.id,text:c.text,expected:c.expected.code,channel:'sms'})),...common.cases,...safety.cases];
 const key='synthetic-provider-key';
 function answer(text:string,code:string|null,extra:any={}) {
  const request=codeDecision(text)!;
- return {answers:[{name:'code',type:'choice',choice:code===null?'none':'c'+request.candidates.indexOf(code),confidence:0.99,...extra},{name:'purpose',type:'choice',choice:code===null?'none':'login',confidence:0.99}]};
+ return {answers:request.body.questions.map(q=>({name:q.name,type:'predicate',probability:q.name==='c'+request.candidates.indexOf(code!)||code!==null&&q.name==='p_login'?.99:0,...(q.name==='c'+request.candidates.indexOf(code!)?extra:{})}))};
 }
-test('all 100 synthetic formats preserve the literal expected code as an option; this is candidate coverage, not model accuracy',()=>{
+test('all release and safety formats preserve the literal expected code as an option; this is candidate coverage, not model accuracy',()=>{
  for(const f of fixtures)if(f.expected!==null){expect(codeCandidates(f.text),f.id).toContain(f.expected);expect(codeDecision(f.text),f.id).not.toBeNull();}
 });
 test('plain-text, HTML and multipart email capture preserve the code through the actual excerpt function',()=>{
@@ -24,12 +25,12 @@ test('plain-text, HTML and multipart email capture preserve the code through the
   }
  }
 });
-test('model output only selects a supplied literal; invalid, refused, ambiguous and uncertain answers cannot create a code',()=>{
+test('refused, missing, invented and invalid probabilities cannot create a code',()=>{
  const text='OTP 246810. Reference 135790.',request=codeDecision(text)!;
  expect(readCodeDecision(answer(text,'246810'),request).code).toBe('246810');
- for(const extra of [{choice:'c999'},{choice:'invented'},{type:'refusal'},{confidence:NaN},{confidence:2},{confidence:-1}])expect(()=>readCodeDecision(answer(text,'246810',extra),request)).toThrow();
- expect(readCodeDecision(answer(text,'246810',{confidence:.6}),request).code).toBeNull();
- expect(readCodeDecision(answer(text,null,{choice:'ambiguous'}),request).reason).toBe('multiple_codes');
+ for(const extra of [{name:'invented'},{type:'refusal'},{probability:NaN},{probability:2},{probability:-1}])expect(()=>readCodeDecision(answer(text,'246810',extra),request)).toThrow();
+ expect(readCodeDecision(answer(text,'246810',{probability:.6}),request).code).toBeNull();
+ expect(readCodeDecision(answer(text,null),request).reason).toBe('no_code');
 });
 test('fresh SMS and email use the same decision path and redact the selected code from metadata',async()=>{
  for(const channel of ['sms','email']){
@@ -80,4 +81,24 @@ test('watchdog credential can read counters but cannot read or claim OTPs',async
  for(const [path,status] of [['observation',200],['recent',401],['claim',401],['sms',401],['email',401]]){
   const response=await bridge(new Request('https://test/v1/'+path,{method:'POST',headers:{authorization:'Bearer '+'d'.repeat(40)},body:'{}'}));expect(response.status).toBe(status);
  }
+});
+
+test('independent code and purpose evidence needs a unique 0.9 result and rejects every plausible rival',()=>{
+ const request=codeDecision('OTP 246810. Reference 135790.')!;
+ const selected='c'+request.candidates.indexOf('246810'),rival='c'+request.candidates.indexOf('135790');
+ const make=()=>({answers:[...request.candidates.map((_,i)=>({name:'c'+i,type:'predicate',probability:'c'+i===selected?.9:0})),...['login','payment','recovery','delivery'].map(p=>({name:'p_'+p,type:'predicate',probability:p==='login'?.9:0}))]});
+ expect(readCodeDecision(make(),request)).toEqual({code:'246810',reason:null,purpose:'login'});
+ for(const [name,probability] of [[selected,.899],[rival,.101],['p_login',.899],['p_payment',.101]] as const){
+  const data=make();data.answers.find(a=>a.name===name)!.probability=probability;
+  expect(readCodeDecision(data,request).code).toBeNull();
+ }
+ const two=make();two.answers.find(a=>a.name===rival)!.probability=.95;
+ expect(readCodeDecision(two,request).reason).toBe('multiple_codes');
+ const duplicate=make();duplicate.answers[1]={...duplicate.answers[0]};
+ expect(()=>readCodeDecision(duplicate,request)).toThrow();
+});
+
+test('a bare ordinary word cannot become a code even if the provider assigns high probability',()=>{
+ const text='CONFIDENTIAL',request=codeDecision(text)!;
+ expect(readCodeDecision(answer(text,text),request).code).toBeNull();
 });
