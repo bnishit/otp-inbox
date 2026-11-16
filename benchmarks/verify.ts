@@ -1,9 +1,11 @@
 import {createOtpResolver} from '../otp-ai';
 import original from './sms-fixtures.json';
 import common from './common-formats.json';
+import safety from './safety-formats.json';
 import {createHash} from 'node:crypto';
 
-let fixtures=[...original.cases.map(c=>({id:c.id,channel:'sms',text:c.text,expected:c.expected.code})),...common.cases];
+let fixtures:{id:string;channel:string;text:string;expected:string|null;purpose?:string}[]=[...original.cases.map(c=>({id:c.id,channel:'sms',text:c.text,expected:c.expected.code})),...common.cases];
+if(process.argv.includes('--safety'))fixtures=safety.cases;
 if(process.argv.includes('--holdout'))fixtures=fixtures.map(f=>{
  const next=f.expected?.replace(/[0-9a-z]/gi,c=>/\d/.test(c)?String((Number(c)+3)%10):String.fromCharCode(c.charCodeAt(0)+(c.toLowerCase()<='w'?3:-23)));
  return {...f,id:'holdout-'+f.id,expected:next??null,text:(f.expected?f.text.split(f.expected).join(next!):'Notification:\n'+f.text)+'\nSupport note: do not forward this message.'};
@@ -18,7 +20,7 @@ await Promise.all(Array.from({length:3},async()=>{
  while(cursor<fixtures.length){
   const f=fixtures[cursor++],at=Date.now(),result=await resolver.resolve(f.text);
   const unavailable=['ai_unavailable','ai_credits_exhausted','ai_limited'].includes(result.reason||'');
-  results.push({id:f.id,channel:f.channel,expected:f.expected,selected:result.code,reason:result.reason,passed:!unavailable&&result.code===f.expected,unavailable,ms:Date.now()-at});
+  results.push({id:f.id,channel:f.channel,expected:f.expected,selected:result.code,reason:result.reason,passed:!unavailable&&result.code===f.expected&&(!f.purpose||result.purpose===f.purpose),purpose:result.purpose,expectedPurpose:f.purpose,unavailable,ms:Date.now()-at});
  }
 }));
 const report={scope:'Actual Decisions API; synthetic fixtures only. Not live-inbox accuracy.',evaluationStatus:results.some(r=>r.unavailable)?'blocked':'complete',fixtureHash:createHash('sha256').update(JSON.stringify(fixtures)).digest('hex'),finishedAt:new Date().toISOString(),elapsedMs:Date.now()-start,total:results.length,passed:results.filter(r=>r.passed).length,falsePositives:results.filter(r=>r.expected===null&&r.selected!==null).length,wrongCodes:results.filter(r=>r.expected!==null&&r.selected!==null&&r.selected!==r.expected).length,results:results.sort((a,b)=>a.id.localeCompare(b.id)),diagnostics:resolver.snapshot()};
