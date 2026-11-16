@@ -58,7 +58,12 @@ test('fallback choice output passes existing literal/confidence/ambiguity checks
  const text='OTP 246810 and reference 135790',request=codeDecision(text)!;
  const choice='c'+request.candidates.indexOf('246810');
  for(const [value,expected] of [[choice,'246810'],['c999',null],['ambiguous',null]] as const){
-  const resolver=createOtpResolver({key,openrouterKey,network:async url=>String(url).includes('api.openai.com')?quota():output({code:{choice:value,confidence:.99},purpose:{choice:'login',confidence:.99}})});
+  const resolver=createOtpResolver({key,openrouterKey,network:async(url,options)=>{
+   if(String(url).includes('api.openai.com'))return quota();
+   const body=JSON.parse(String(options?.body));
+   expect(body.input.at(-1)).toEqual({role:'user',content:[{type:'input_text',text:JSON.stringify({message:text})}]});
+   return output({code:{choice:value,confidence:.99},purpose:{choice:'login',confidence:.99}});
+  }});
   expect((await resolver.resolve(text)).code).toBe(expected);
  }
 });

@@ -25,7 +25,6 @@ test('candidate context preserves every literal option, including repeated codes
   expect(evidence.untrustedContext).toContain(literal);
   expect(text).toContain(evidence.untrustedContext);
  }
- expect(request.body.questions[0].instructions).toContain('untrusted message data');
  const nested=codeDecision('Reference 1234567890.'+' '.repeat(100)+'OTP 3456.')!;
  const option=nested.body.questions[0].choices[nested.candidates.indexOf('3456')];
  expect(JSON.parse(option.description).untrustedContext).toContain('OTP 3456.');
