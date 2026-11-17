@@ -1,3 +1,4 @@
+import { traceBridge } from './tracing';
 import { timingSafeEqual, createHash } from 'node:crypto';
 import {createAuditStore, type AuditStore, type AuditEvent} from './audit';
 import {createSmsShadow,type SmsShadow} from './sms-shadow';
@@ -257,7 +258,7 @@ if (import.meta.main) {
   const resolver=Bun.env.OTP_AI_MODE==='resolve'?createOtpResolver({...aiKeys,loadExamples:Bun.env.OTP_POLICY_URL?createExampleLoader(Bun.env.OTP_POLICY_URL):undefined}):undefined;
   const shadow=resolver?undefined:createSmsShadow({enabled:Bun.env.OTP_AI_SHADOW==='true',...aiKeys});
   const audit = Bun.env.OTP_AUDIT_DATABASE_URL ? await createAuditStore(Bun.env.OTP_AUDIT_DATABASE_URL) : undefined;
-  const bridge = createBridge(ingestKey, clients, Date.now, emailSources, validateLinkRules(JSON.parse(Bun.env.OTP_LOGIN_LINK_RULES || '[]')),shadow,resolver,Bun.env.OTP_DIAGNOSTICS_TOKEN||'',audit);
+  const bridge = traceBridge(createBridge(ingestKey, clients, Date.now, emailSources, validateLinkRules(JSON.parse(Bun.env.OTP_LOGIN_LINK_RULES || '[]')),shadow,resolver,Bun.env.OTP_DIAGNOSTICS_TOKEN||'',audit));
   const mcp = createMcp(bridge, clients);
   const push = Bun.env.GMAIL_PUSH_CONFIG ? createGmailPush(JSON.parse(Bun.env.GMAIL_PUSH_CONFIG),emailSources,bridge) : null;
   if (push) await push.start();
