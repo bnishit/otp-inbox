@@ -186,3 +186,5 @@ source-heartbeat routes, including bridge calls made by MCP. It emits timed
 request receipts only; it never reads the request or response content for
 telemetry. HTTP delivery does not prove a successful login or autofill. The
 in-memory delivery queue is best effort across process termination.
+
+The Railway function launcher accepts at most 96 KB of base64 source. `bun run build:function` minifies the bundle; CI enforces a 72,000-byte source ceiling before deployment. Push the built file with the Railway function CLI and verify the running container, rather than relying on a configuration update alone.
