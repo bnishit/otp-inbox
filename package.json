@@ -9,6 +9,7 @@
     "build:function": "bun build server.ts --target=bun --outfile=.local/function.js"
   },
   "dependencies": {
+    "@afterspan/sdk": "file:vendor/afterspan-sdk-e950b01.tgz",
     "tldts": "7.4.19"
   }
 }

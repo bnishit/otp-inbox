@@ -173,3 +173,16 @@ site/              public landing page; no inbox connection
 ```
 
 Issues and contributions are welcome. Use invented codes in tests. Never attach real SMS, mailbox bodies, private setup folders or personalized Shortcut exports. Read [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md) first.
+
+### Optional server tracing
+
+Set `NATIVE_ANALYTICS_URL` to your own HTTPS Afterspan origin and
+`NATIVE_ANALYTICS_WRITE_KEY` to a dedicated OTP project producer key through
+server secrets. With either unset, tracing is disabled. No key belongs in the
+extension. The built SDK is pinned in `vendor/README.md`.
+
+The server traces the fixed capture, lookup, claim, history, observation and
+source-heartbeat routes, including bridge calls made by MCP. It emits timed
+request receipts only; it never reads the request or response content for
+telemetry. HTTP delivery does not prove a successful login or autofill. The
+in-memory delivery queue is best effort across process termination.
