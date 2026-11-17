@@ -6,7 +6,7 @@
   "scripts": {
     "start": "bun run server.ts",
     "test": "bun test",
-    "build:function": "bun build server.ts --target=bun --outfile=.local/function.js"
+    "build:function": "bun build server.ts --target=bun --minify --outfile=.local/function.js"
   },
   "dependencies": {
     "@afterspan/sdk": "file:vendor/afterspan-sdk-e950b01.tgz",
