@@ -6,7 +6,7 @@ function fixture(initial:any={}) {
  const session:any={},state:any={connection:{origin:'https://bridge.example.test',token:'synthetic-reader-key'},...initial},events:any={},calls:any[]=[];
  const listener=(name:string)=>({addListener:(fn:any)=>events[name]=fn});
  const local:any={get:async(keys:any)=>Object.fromEntries((Array.isArray(keys)?keys:[keys]).map(k=>[k,state[k]])),set:async(v:any)=>Object.assign(state,v),remove:async(keys:any)=>{for(const key of Array.isArray(keys)?keys:[keys])delete state[key];},setAccessLevel:async(v:any)=>calls.push(['access',v.accessLevel])};
- const chrome:any={runtime:{id:'test-extension',getURL:(p:string)=>'chrome-extension://test-extension/'+p,onInstalled:listener('installed'),onStartup:listener('startup'),onMessage:listener('message')},storage:{local,session:{get:async(keys:any)=>Object.fromEntries((Array.isArray(keys)?keys:[keys]).map(k=>[k,session[k]])),set:async(v:any)=>Object.assign(session,v),remove:async(key:string)=>{delete session[key];}},onChanged:listener('storage')},alarms:{create:async(...v:any[])=>calls.push(['alarm',...v]),clear:async(...v:any[])=>calls.push(['clear',...v]),onAlarm:listener('alarm')},action:{setBadgeText:async(v:any)=>calls.push(['badge',v.text]),setBadgeBackgroundColor:async()=>{}},permissions:{onAdded:listener('permission-added'),contains:async()=>state.alerts!==false},notifications:{create:async(...v:any[])=>{if(state.notificationFailure)throw Error('notifications unavailable');calls.push(['notification',...v]);},clear:async()=>{},onClicked:listener('notification-click')},sidePanel:{setPanelBehavior:async()=>{},open:async()=>{}},windows:{getCurrent:async()=>({id:1})}};
+ const chrome:any={runtime:{id:'test-extension',getURL:(p:string)=>'chrome-extension://test-extension/'+p,onInstalled:listener('installed'),onStartup:listener('startup'),onMessage:listener('message')},storage:{local,session:{get:async(keys:any)=>Object.fromEntries((Array.isArray(keys)?keys:[keys]).map(k=>[k,session[k]])),set:async(v:any)=>Object.assign(session,v),remove:async(key:string)=>{delete session[key];}},onChanged:listener('storage')},alarms:{create:async(...v:any[])=>calls.push(['alarm',...v]),clear:async(...v:any[])=>calls.push(['clear',...v]),onAlarm:listener('alarm')},action:{openPopup:async()=>{},setBadgeText:async(v:any)=>calls.push(['badge',v.text]),setBadgeBackgroundColor:async()=>{}},permissions:{onAdded:listener('permission-added'),contains:async()=>state.alerts!==false},notifications:{create:async(...v:any[])=>{if(state.notificationFailure)throw Error('notifications unavailable');calls.push(['notification',...v]);},clear:async()=>{},onClicked:listener('notification-click')},windows:{getCurrent:async()=>({id:1})}};
  if(state.notificationsUnavailable)delete chrome.notifications;
  let items:any[]=[],fail=false,networkHook:any;
  const network=async(url:any,options:any)=>{calls.push(['fetch',url,JSON.parse(options.body)]);if(networkHook)await networkHook();if(fail)throw Error('provider may include secret');return Response.json({items});};
@@ -78,8 +78,8 @@ test('restart catches a new SMS while skipping previously seen mail and protects
  expect(restarted.calls.filter(c=>c[0]==='fetch').every(c=>c[1].endsWith('/v1/recent'))).toBe(true);
 });
 
-test('an arrival click opens a helper popup when Chrome refuses to open the side panel',async()=>{
- const f=fixture();f.chrome.sidePanel.open=async()=>{throw Error('gesture unavailable');};
+test('an arrival click opens a helper window when Chrome refuses to open the toolbar popup',async()=>{
+ const f=fixture();f.chrome.action.openPopup=async()=>{throw Error('gesture unavailable');};
  let popup:any;f.chrome.windows.create=async(value:any)=>popup=value;
  await f.events['notification-click']('otp-login-ready');
  expect(popup).toEqual({url:'chrome-extension://test-extension/panel.html',type:'popup',width:420,height:760});

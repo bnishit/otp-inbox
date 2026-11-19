@@ -1,7 +1,7 @@
 import {test,expect} from 'bun:test';
 import {readFileSync} from 'node:fs';
 import {parse} from './domain.js';
-import {automaticCandidate,automaticRule} from './auto-fill.js';
+import {automaticCandidate,automaticRule,formatSaved} from './auto-fill.js';
 import {bridgeOrigin,fillLoginCode} from './core.js';
 const now=Date.now(),since=now-1000,rule={service:'Blinkit',channel:'sms',account:null};
 const item=(id='sms')=>({id,secret_type:'code',channel:'sms',account:null,status:'available',received_at:new Date(now).toISOString(),expires_at:new Date(now+60000).toISOString()});
@@ -16,17 +16,17 @@ function fixture(options:any={}) {
  const sender:any={id:'extension',frameId:0,documentId:'document-one',url:'https://blinkit.com/',tab:{id:1},...options.sender};
  Object.assign(state,options.settings||{});
  let active:any={id:1,url:'https://blinkit.com/'};
- const chrome:any={permissions:{contains:async(value:any)=>value.origins?options.sitePermission!==false:options.alerts!==false},notifications:{create:async(id:any,value:any)=>{if(options.notificationFailure)throw Error('unavailable');calls.push(['notification',value]);}},runtime:{id:'extension'},tabs:{query:async()=>[active]},storage:{session:{get:async()=>session,set:async(v:any)=>Object.assign(session,v)}},scripting:{executeScript:async(value:any)=>{calls.push(['script',value.args,value.target]);return [{result:{ok:options.fields!==false,payment:options.payment===true}}];}}};
+ const chrome:any={permissions:{contains:async(value:any)=>value.origins?options.sitePermission!==false:options.alerts!==false},notifications:{create:async(id:any,value:any)=>{if(options.notificationFailure)throw Error('unavailable');calls.push(['notification',value]);}},runtime:{id:'extension'},tabs:{query:async()=>[active]},storage:{session:{get:async()=>session,set:async(v:any)=>Object.assign(session,v)}},scripting:{executeScript:async(value:any)=>{calls.push(['script',value.args,value.target]);return [{result:{ok:options.fields!==false,payment:options.payment===true,channel:options.channel}}];}}};
  const store={get:async()=>state};
  const fetcher=async(url:string,init:any)=>{calls.push(['fetch',url,JSON.parse(init.body)]);if(url.endsWith('/v1/claim')){if(options.navigate)active={id:1,url:'https://other.example.test/'};if(options.disconnect)delete state.connection;return Response.json({...item(),code:'1357',...options.claim});}return Response.json({items:options.items||[item()]});};
  const source=readFileSync(new URL('./auto-fill.js',import.meta.url),'utf8').replace(/^import .*;\n/gm,'').replaceAll('export ','');
- const fn=new Function('chrome','fetch','connectionStore','bridgeOrigin','fillLoginCode','automaticRule','parse',source+'\nreturn automaticFill;')(chrome,fetcher,async()=>store,bridgeOrigin,fillLoginCode,automaticRule,parse);
+ const fn=new Function('chrome','fetch','connectionStore','bridgeOrigin','fillLoginCode','automaticRule','parse',source+'\nreturn automaticFill;')(chrome,fetcher,async()=>({...store,set:async(v:any)=>Object.assign(state,v)}),bridgeOrigin,fillLoginCode,automaticRule,parse);
  return {state,session,calls,run:()=>fn({requestAt:since},sender)};
 }
 test('opted-in active login fills the exact document once without a watch or manual fill click',async()=>{
  const f=fixture();await f.run();await f.run();
  expect(f.calls.filter(c=>c[0]==='fetch'&&c[1].endsWith('/v1/claim'))).toHaveLength(1);
- expect(f.calls.filter(c=>c[0]==='script').at(-1)[2]).toEqual({tabId:1,documentIds:['document-one']});
+ expect(f.calls.filter(c=>c[0]==='script')[1][2]).toEqual({tabId:1,documentIds:['document-one']});
  expect(f.session.automaticFillStatus.status).toBe('filled');expect(JSON.stringify(f.session)).not.toContain('1357');
  expect(f.calls.find(c=>c[0]==='fetch')[2]).toMatchObject({service:'Blinkit',channel:'sms',since:new Date(since).toISOString()});
 });
@@ -42,9 +42,20 @@ test('navigation, disconnect or an expired claim prevents the code write',async(
  }
 });
 
-test('automatic fill confirms with a generic popup; notification failure never undoes a successful fill receipt',async()=>{
- const f=fixture();await f.run();const alerts=f.calls.filter(c=>c[0]==='notification');expect(alerts).toHaveLength(1);expect(alerts[0][1].title).toBe('Login code filled');expect(JSON.stringify(alerts)).not.toContain('1357');
- for(const options of [{notificationFailure:true},{alerts:false}]){const f=fixture(options);await f.run();expect(f.session.automaticFillStatus.status).toBe('filled');expect(f.calls.filter(c=>c[0]==='notification')).toHaveLength(0);}
+test('automatic fill waits on the bridge, presses Verify by default, and shows a code-free savings toast',async()=>{
+ const f=fixture();await f.run();
+ expect(f.calls.find(c=>c[0]==='fetch')[2].wait_seconds).toBe(20);
+ const scripts=f.calls.filter(c=>c[0]==='script');
+ expect(scripts[1][1][2]).toMatchObject({submit:true});
+ expect(scripts.at(-1)[1][1]).toBe('OTP Bridge saved you ~20s on blinkit.com');
+ expect(f.state.savings).toMatchObject({fills:1,seconds:20});
+ expect(JSON.stringify(scripts.at(-1))+JSON.stringify(f.state.savings)).not.toContain('1357');
+ expect(f.calls.filter(c=>c[0]==='notification')).toHaveLength(0);
+ const off=fixture({settings:{autoSubmitLogin:false}});await off.run();
+ expect(off.calls.filter(c=>c[0]==='script')[1][1][2]).toMatchObject({submit:false});
+});
+test('saved time reads like a person would say it',()=>{
+ expect(formatSaved(20)).toBe('20s');expect(formatSaved(600)).toBe('10 min');expect(formatSaved(4320)).toBe('1h 12m');
 });
 
 test('one global setting derives the real website brand, including private suffixes and country domains',()=>{
@@ -72,17 +83,27 @@ test('saved payment automation accepts one issuer-matched payment code and reche
  const paymentItem={...item(),service_hint:'merchant',preview:'Blinkit payment verification code [redacted]'};
  const f=fixture({settings:{autoFillEverywhere:true,autoFillSites:{},paymentAutomation:'submit'},payment:true,items:[paymentItem]});await f.run();
  expect(f.session.automaticFillStatus.status).toBe('filled');
- expect(f.calls.filter(c=>c[0]==='script').at(-1)[1][2]).toEqual({payments:'submit',expectedPayment:true});
+ expect(f.calls.filter(c=>c[0]==='script')[1][1][2]).toEqual({payments:'submit',expectedPayment:true,submit:true});
  const global=automaticRule('https://blinkit.com',{autoFillEverywhere:true});
  expect(automaticCandidate([paymentItem],{...global,payment:true},since)).toBeNull();
  expect(automaticCandidate([paymentItem],{...global,payment:true,payments:'submit'},since)?.id).toBe('sms');
  expect(automaticCandidate([{...paymentItem,preview:'Other issuer payment code'}],{...global,payment:true,payments:'submit'},since)).toBeNull();
 });
 
+test('a box that asks for the phone code gets the SMS, even when an email code arrived first',async()=>{
+ const mail={...item('mail'),channel:'email',account:'owner@example.test',service_hint:'blinkit'},sms={...item('sms'),service_hint:'blinkit'};
+ const settings={autoFillEverywhere:true,autoFillSites:{}};
+ const phone=fixture({settings,channel:'sms',items:[mail,sms]});await phone.run();
+ expect(phone.calls.find(c=>c[0]==='fetch')[2].channel).toBe('sms');
+ expect(phone.calls.find(c=>c[0]==='fetch'&&c[1].endsWith('/v1/claim'))[2].id).toBe('sms');
+ const unclear=fixture({settings,items:[mail,sms]});await unclear.run();
+ expect(unclear.calls.filter(c=>c[0]==='fetch'&&c[1].endsWith('/v1/claim'))).toHaveLength(0);
+});
+
 test('code-field focus keeps the original request time; resend starts a fresh boundary',()=>{
  let clock=1000,check:any;
  const handlers:any={},messages:any[]=[];
- const document={visibilityState:'visible',addEventListener:(name:string,fn:any)=>{handlers[name]=fn;}};
+ const document={visibilityState:'visible',querySelector:()=>({}),addEventListener:(name:string,fn:any)=>{handlers[name]=fn;}};
  const chrome={runtime:{sendMessage:(message:any)=>{messages.push(message);return Promise.resolve();}}};
  const source=readFileSync(new URL('./automatic-page.js',import.meta.url),'utf8');
  new Function('document','window','chrome','setInterval','Date',source)(document,{},chrome,(fn:any)=>{check=fn;},{now:()=>clock});
