@@ -46,15 +46,22 @@ export function fillLoginCode(code, expectedOrigin, automatic = false) {
   if (code === null || automatic) {
     if (/reset.*password|password.*reset|recover.*account|withdraw|bank transfer/i.test(context) || (payment ? !paymentMode : !challenge.test(context))) return {ok:false,reason:'Use manual fill for this verification.'};
     if(targets.some(input=>input.value))return {ok:false,reason:'The code field already has a value.'};
-    if(code === null)return {ok:true,fields:targets.length,payment};
+    if(code === null){
+      // Which code does this box want? Read the words right around it. Pages that verify both email and phone say so here.
+      let near='';for(let node=targets[0].parentElement,depth=0;node&&depth<5&&near.length<15;node=node.parentElement,depth++)near=node.innerText||'';
+      const email=/e-?mail|inbox/i.test(near),phone=/phone|mobile|\bsms\b|\+\d{2}|number/i.test(near);
+      return {ok:true,fields:targets.length,payment,channel:email&&!phone?'email':phone&&!email?'sms':null};
+    }
   }
   if (targets.some(input => input.type === 'number' && !/^\d+$/.test(code))) return {ok:false,reason:'This field expects digits. Use Copy code.'};
   if (targets.length === 1 && targets[0].maxLength > 0 && targets[0].maxLength < code.length) return {ok:false,reason:'The code does not fit this field. Use Copy code.'};
+  const usable=button=>!button.disabled&&button.getClientRects().length&&getComputedStyle(button).visibility!=='hidden';
+  const label=button=>(button.innerText||button.value||button.getAttribute('aria-label')||'').trim().replace(/\s+/g,' ');
   let submitButton;
   if(automatic&&payment&&paymentMode==='submit'){
     const form=targets[0].form;
     if(!form||!targets.every(input=>input.form===form))return {ok:false,reason:'Payment form is unclear.'};
-    const buttons=[...form.querySelectorAll('button,input[type="submit"]')].filter(button=>!button.disabled&&button.getClientRects().length&&getComputedStyle(button).visibility!=='hidden'&&/^(submit|verify|confirm|pay(?: now)?)$/i.test((button.innerText||button.value||'').trim()));
+    const buttons=[...form.querySelectorAll('button,input[type="submit"]')].filter(button=>usable(button)&&/^(submit|verify|confirm|pay(?: now)?)$/i.test(label(button)));
     if(buttons.length!==1)return {ok:false,reason:'Payment confirmation button is unclear.'};
     submitButton=buttons[0];
   }
@@ -64,6 +71,42 @@ export function fillLoginCode(code, expectedOrigin, automatic = false) {
     input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));
   });
   targets.at(-1).focus();
-  if(submitButton?.isConnected&&!submitButton.disabled)submitButton.click();
-  return {ok:true,fields:targets.length};
+  if(payment&&submitButton?.isConnected&&!submitButton.disabled)submitButton.click();
+  let pressing=null;
+  if(automatic?.submit&&!payment){
+    // Works the same on any site. Read the page top to bottom, like a person:
+    // press the first go-ahead button that comes AFTER the code box, with no other field in between.
+    // A Login button above the box (or behind a popup) is never in reach. Resend, send, close, back and help are skipped.
+    // Decide after the code is in, and keep checking briefly: many sites keep Confirm greyed out until then.
+    const go=/^(?:submit|verify|confirm|continue|next|proceed|done|authenticate|validate|log ?in|sign ?in)\b/i;
+    const avoid=/resend|send|get|request|change|edit|back|cancel|close|help|forgot|google|apple|facebook/i;
+    const shown=el=>el.getClientRects().length&&getComputedStyle(el).visibility!=='hidden';
+    const findButton=()=>{
+      const box=targets[0].closest('dialog,[role="dialog"],[aria-modal="true"]')||document;
+      const items=[...box.querySelectorAll('input,textarea,select,button,[role="button"]')];
+      for(const el of items.slice(items.indexOf(targets.at(-1))+1)){
+        if(!shown(el)||targets.includes(el))continue;
+        const isButton=el.matches('button,[role="button"],input[type="submit"],input[type="button"]');
+        if(!isButton){if(!['hidden','checkbox','radio'].includes(el.type))return {state:'none'};continue;}
+        const text=label(el);
+        if(text.length>30||avoid.test(text)||!go.test(text))continue;
+        return {state:el.disabled||el.getAttribute('aria-disabled')==='true'?'waiting':'ready',button:el};
+      }
+      return {state:'none'};
+    };
+    const first=findButton();
+    if(first.button){
+      pressing=label(first.button);
+      const page=location.href,started=Date.now();
+      // Short pause first: sites that submit on the last digit get to go first.
+      const attempt=()=>{
+        if(location.href!==page||!targets.every(input=>input.isConnected&&input.value))return;
+        const now=findButton();
+        if(now.state==='ready')return now.button.click();
+        if(now.state==='waiting'&&Date.now()-started<2000)setTimeout(attempt,150);
+      };
+      setTimeout(attempt,600);
+    }
+  }
+  return {ok:true,fields:targets.length,submit:pressing};
 }

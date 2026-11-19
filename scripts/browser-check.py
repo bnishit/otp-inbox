@@ -85,6 +85,23 @@ if __name__=='__main__':
         if(result.ok!==ok||state.submitted!==submitted||state.value!==(ok?'246810':''))throw Error('Payment fixture failed: '+name);
         results.push({name,passed:true});
       }
+      // Pressing the code's own button, on any site: the first go-ahead button after the code box, decided after the fill.
+      const mark=what=>"document.body.dataset."+what+"=String(Number(document.body.dataset."+what+"||0)+1)";
+      for(const [name,html,confirmed] of [
+        ['login button behind an OTP popup is never pressed','<title>Email Login</title><form><label>Registered Email Address<input type="email" value="owner@example.test"></label><label>Password<input type="password" value="synthetic"></label><button type="button" onclick="'+mark('resent')+'">Login</button></form><div role="dialog"><h2>Authenticate</h2><p>Enter the 6-digit OTP sent to your phone number and email</p><input placeholder="Enter OTP" oninput="document.getElementById(\\'go\\').disabled=this.value.length!==6"><a href="#">Resend OTP</a><button id="go" type="button" disabled onclick="'+mark('confirmed')+'">Confirm</button></div>',true],
+        ['code box then Verify','<title>Login</title><p>Enter the 6-digit code sent to your phone</p><input autocomplete="one-time-code"><button type="button" onclick="'+mark('confirmed')+'">Verify</button>',true],
+        ['Get OTP above the code box is never pressed','<title>Login</title><p>Login with mobile</p><input type="tel" value="9876543210"><button type="button" onclick="'+mark('resent')+'">Get OTP</button><p>Enter the OTP sent to your mobile</p><input name="otp"><button type="button" onclick="'+mark('confirmed')+'">Verify</button>',true],
+        ['split digits then Continue','<title>Sign in</title><p>Enter the 6-digit code sent to your phone</p>'+'<input maxlength="1" inputmode="numeric" autocomplete="one-time-code">'.repeat(6)+'<button type="button" onclick="'+mark('confirmed')+'">Continue</button>',true],
+        ['site that submits on the last digit is not pressed again','<title>Login</title><p>Enter the OTP sent to your mobile</p><input name="otp" oninput="if(this.value.length===6)document.body.innerHTML=\\'<h1>Logged in</h1>\\'"><button type="button" onclick="'+mark('confirmed')+'">Verify</button>',false],
+        ['field between code box and button blocks the press','<title>Login</title><p>Enter the OTP sent to your mobile</p><input name="otp"><input name="nickname"><button type="button" onclick="'+mark('confirmed')+'">Verify</button>',false]
+      ]){
+        await page.setContent(html);
+        const result=await page.evaluate(({source})=>(0,eval)('('+source+')')('246810',location.origin,{payments:null,expectedPayment:false,submit:true}),{source:fill.toString()});
+        await page.waitForTimeout(1200);
+        const state=await page.evaluate(()=>({resent:document.body.dataset.resent||'0',confirmed:document.body.dataset.confirmed||'0'}));
+        if(!result.ok||state.resent!=='0'||state.confirmed!==(confirmed?'1':'0'))throw Error('Verify press regression: '+name+' '+JSON.stringify(state));
+        results.push({name,passed:true});
+      }
       return {scope:'actual function in real Chromium; synthetic DOMs; not live login',results};
     }'''.replace('FUNCTION',function).replace('CASES',json.dumps(cases))
     try:
@@ -97,6 +114,6 @@ if __name__=='__main__':
         # CLI prints source as well. Retain the result only, which contains no secrets.
         output=result.stdout.split('### Result\n',1)[-1].split('### Ran Playwright code',1)[0].strip()
         parsed=json.loads(output)
-        if len(parsed.get('results',[])) != len(cases)+17 or not all(result.get('passed') for result in parsed['results']):raise RuntimeError('Browser regressions failed')
+        if len(parsed.get('results',[])) != len(cases)+23 or not all(result.get('passed') for result in parsed['results']):raise RuntimeError('Browser regressions failed')
         print(output)
     finally:subprocess.run(cli+['close'],cwd=ROOT,capture_output=True)

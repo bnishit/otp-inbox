@@ -44,7 +44,7 @@ async function startInbox() {
   if(running)await running;
   return updateInbox();
 }
-chrome.runtime.onInstalled.addListener(()=>{chrome.sidePanel.setPanelBehavior({openPanelOnActionClick:false});startInbox();registerAutomaticSites().catch(()=>{});});
+chrome.runtime.onInstalled.addListener(()=>{startInbox();registerAutomaticSites().catch(()=>{});});
 chrome.runtime.onStartup.addListener(()=>{startInbox();registerAutomaticSites().catch(()=>{});});
 chrome.alarms.onAlarm.addListener(event=>{if(event.name===alarm)updateInbox();});
 chrome.storage.onChanged.addListener(async(changes,area)=>{
@@ -63,7 +63,7 @@ function registerNotificationClick() {
   if(notificationClickRegistered || !chrome.notifications?.onClicked)return;
   chrome.notifications.onClicked.addListener(async id=>{
     if(id!=='otp-login-ready')return;
-    try{const window=await chrome.windows.getCurrent();await chrome.sidePanel.open({windowId:window.id});}
+    try{await chrome.action.openPopup();}
     catch{await chrome.windows.create({url:chrome.runtime.getURL('panel.html'),type:'popup',width:420,height:760});}
     chrome.notifications.clear(id);
   });

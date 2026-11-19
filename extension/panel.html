@@ -1,8 +1,43 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>OTP Bridge — Login helper</title><link rel="stylesheet" href="panel.css"></head>
-<body><header><div class="brand"><span class="mark" aria-hidden="true">↳</span> OTP Bridge</div><span class="tag">LOGIN HELPER</span></header>
-<main><section class="intro"><p class="eyebrow">PHONE → THIS PAGE</p><h1>Stay in<br>your flow.</h1><p>Your next code or sign-in link.<br>Here automatically, as it arrives.</p></section>
-<section class="page-context" aria-label="Selected login page"><span class="dot"></span><div><span class="eyebrow">YOUR LOGIN PAGE</span><strong id="target">Click the bridge icon on your login page</strong><button id="use-page" class="text-button" type="button">Use current page</button></div></section>
-<section id="setup"><h2>Connect your bridge</h2><p>Use your private bridge address and a dedicated browser client key. Your inbox access stays the same.</p><form id="connect-form"><label>Bridge address<input id="bridge" type="url" placeholder="https://your-bridge.example" required></label><label>Browser client key<input id="token" type="password" autocomplete="off" minlength="32" required></label><button type="submit">Connect and stay connected <span>↗</span></button></form><p class="fine">The key is saved in this Chrome profile, without Chrome sync. Only trusted extension pages can read it. Disconnect removes it.</p></section>
-<section id="login" hidden><div class="section-heading"><h2>Your login inbox</h2><span>AUTOMATIC</span></div><p class="fine">New arrivals appear even with this panel closed. Turn on automatic login filling once for all HTTPS websites. Payment behavior is your saved choice. Account recovery stays manual.</p><button id="enable-everywhere" type="button">Turn on automatic login filling everywhere</button><p id="everywhere-state" class="fine"></p><details><summary>Payment codes</summary><p class="fine">Choose once. Filling a code can approve a charge on some bank pages. Automatic submission also clicks the clear confirmation button. This setting uses the same selected-tab, fresh-code and matching-bank checks.</p><label>Payment behavior<select id="payment-mode"><option value="">Keep payment codes manual</option><option value="fill">Fill payment codes automatically</option><option value="submit">Fill and submit payment codes automatically</option></select></label><button id="save-payment" type="button">Save payment behavior</button><p id="payment-state" class="fine"></p></details><details><summary>Site exceptions and custom matching</summary><p class="fine">Enable once for this website. A fresh matching login code fills while this tab is selected. Some sites submit as soon as the last digit is filled.</p><label>Service name in the message<input id="auto-service" maxlength="100" placeholder="Blinkit"></label><label>Code arrives by<select id="auto-channel"><option value="sms">Phone SMS</option><option value="email">Email</option></select></label><label>Exact email (required for email codes)<input id="auto-account" type="email"></label><button id="enable-auto" type="button">Enable automatic fill here</button><button id="disable-auto" class="text-button" type="button">Turn off automatic fill here</button><p id="auto-state" class="fine"></p></details><button id="refresh" class="secondary" type="button">Refresh now</button><button id="notify" class="text-button" type="button">Enable arrival popups</button><details><summary>Narrow the inbox</summary><label>Service or sender<input id="service" placeholder="Optional" maxlength="160"></label><label>Exact email account<input id="account" type="email" placeholder="Optional"></label><button id="new-only" class="secondary" type="button">Show only arrivals from now</button><button id="all-recent" class="text-button" type="button">Show all recent items</button></details><p id="inbox-state" class="fine" role="status" aria-live="polite"></p><div id="results"></div><button id="disconnect" class="text-button">Disconnect bridge</button></section>
-<p id="status" role="status" aria-live="polite">Connect once. New arrivals appear automatically.</p><aside><strong>You stay in control.</strong><p>Automatic login filling needs website access once. It fills only one fresh matching code in an empty login field on your selected tab. A site may submit on fill. Payment automation is a separate saved choice. Recovery and security changes stay manual.</p></aside></main><footer>ONE LOGIN. ONE NEXT STEP.</footer><script type="module" src="panel.js"></script></body></html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>OTP Bridge</title><link rel="stylesheet" href="panel.css"></head>
+<body>
+<header><span class="mark" aria-hidden="true">↳</span><strong>OTP Bridge</strong><span id="state" class="state"></span></header>
+
+<section id="setup" hidden>
+  <h1>Connect your bridge</h1>
+  <form id="connect-form">
+    <label>Bridge address<input id="bridge" type="url" placeholder="https://your-bridge.example" required></label>
+    <label>Browser key<input id="token" type="password" autocomplete="off" minlength="32" required></label>
+    <button type="submit">Connect</button>
+  </form>
+  <p class="fine">Saved in this Chrome profile only. Disconnect removes it.</p>
+</section>
+
+<section id="home" hidden>
+  <div class="saved"><span class="eyebrow">TIME SAVED</span><b id="saved-total">0s</b><span id="saved-note" class="fine"></span></div>
+  <div class="site"><span id="site-dot" class="dot"></span><span id="site">No website open</span></div>
+  <div class="list-head"><h2>Codes</h2><span class="fine">last 10 min</span></div>
+  <div id="results"></div>
+  <p id="empty" class="empty">No codes yet. They show up here, and fill themselves on the page.</p>
+
+  <details>
+    <summary>Settings</summary>
+    <label class="switch"><span>Fill codes on every site<small>One-time Chrome permission</small></span><input id="everywhere" type="checkbox"></label>
+    <label class="switch"><span>Press Verify after filling<small>Only when there is one clear button</small></span><input id="auto-submit" type="checkbox"></label>
+    <label class="switch"><span>Play a sound when a code fills</span><input id="sound" type="checkbox"></label>
+    <label class="switch"><span>Alert me when a code arrives</span><input id="alerts" type="checkbox"></label>
+    <label class="row">Payment codes<select id="payment-mode"><option value="">Keep manual</option><option value="fill">Fill</option><option value="submit">Fill and submit</option></select></label>
+    <details class="nested">
+      <summary>Not matching on this site?</summary>
+      <label>Name in the message<input id="auto-service" maxlength="100" placeholder="Blinkit"></label>
+      <label>Arrives by<select id="auto-channel"><option value="sms">SMS</option><option value="email">Email</option></select></label>
+      <label>Email address (for email codes)<input id="auto-account" type="email"></label>
+      <div class="pair"><button id="enable-auto" type="button">Save for this site</button><button id="disable-auto" class="ghost" type="button">Never on this site</button></div>
+    </details>
+    <button id="disconnect" class="link" type="button">Disconnect bridge</button>
+  </details>
+</section>
+
+<p id="status" role="status" aria-live="polite"></p>
+<script type="module" src="panel.js"></script>
+</body></html>
