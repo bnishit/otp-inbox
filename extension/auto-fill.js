@@ -14,16 +14,24 @@ export function automaticCandidate(items,rule,since,now=Date.now()) {
   const matches=(items||[]).filter(item=>
     (!rule.channel?['sms','email'].includes(item.channel):item.channel===rule.channel) && item.secret_type==='code' &&
     (!rule.automatic || (item.channel!=='email'||!!item.account) &&
-      (item.service_hint&&!rule.payment?item.service_hint.toLowerCase()===rule.service:new RegExp('(?:^|[^a-z0-9-])'+rule.service+'(?:$|[^a-z0-9-])','i').test(item.preview||''))) &&
+      // Payment texts hide the merchant name in the preview; the bridge matched it in the full message (and checks again on claim).
+      (rule.payment||(item.service_hint?item.service_hint.toLowerCase()===rule.service:new RegExp('(?:^|[^a-z0-9-])'+rule.service+'(?:$|[^a-z0-9-])','i').test(item.preview||'')))) &&
     Date.parse(item.received_at)>=since && Date.parse(item.expires_at)>now && !/withdraw|bank transfer|reset.*password|password.*reset|recover.*account/i.test(item.preview||'') && (rule.payment?!!rule.payments:/payment|transaction|merchant|purchase/i.test(item.preview||'')===false) &&
     (!rule.account || item.account?.toLowerCase()===rule.account.toLowerCase()));
-  return matches.length===1&&['available','claimed_by_you'].includes(matches[0].status)?matches[0]:null;
+  const open=item=>['available','claimed_by_you'].includes(item.status);
+  if(matches.length===1)return open(matches[0])?matches[0]:null;
+  // Banks send the same card code by SMS and email at once. Take the pair only if both codes turn out identical.
+  const [sms,email]=['sms','email'].map(channel=>matches.find(item=>item.channel===channel));
+  return rule.payment&&matches.length===2&&sms&&email&&open(sms)&&open(email)&&Math.abs(Date.parse(sms.received_at)-Date.parse(email.received_at))<=60000?{...sms,twin:email.id}:null;
 }
 export async function automaticFill(message,sender) {
-  if(sender.id!==chrome.runtime.id || sender.frameId!==0 || typeof sender.documentId!=='string' || !sender.tab?.id || running.has(sender.tab.id))return;
+  if(sender.id!==chrome.runtime.id || !Number.isInteger(sender.frameId) || typeof sender.documentId!=='string' || !sender.tab?.id || !sender.tab.url || running.has(sender.tab.id))return;
   const requestAt=Number(message.requestAt),now=Date.now();
   if(!Number.isFinite(requestAt)||requestAt>now||now-requestAt>120000)return;
-  const origin=bridgeOrigin(new URL(sender.url).origin),store=await connectionStore();
+  // The site is the tab you are on (the merchant). A card check runs in the bank's own frame inside it: that frame gets the code.
+  const origin=bridgeOrigin(new URL(sender.tab.url).origin),frameOrigin=new URL(sender.url).origin,inFrame=sender.frameId!==0,store=await connectionStore();
+  if(!inFrame&&frameOrigin!==origin)return;
+  const target={tabId:sender.tab.id,documentIds:[sender.documentId]};
   const settings=await store.get(['connection','autoFillSites','autoFillEverywhere','paymentAutomation','autoSubmitLogin','fillSound']);
   const {connection}=settings,rule=automaticRule(origin,settings);if(!connection||!rule||rule.automatic&&!await chrome.permissions.contains({origins:['https://*/*']}))return;
   running.add(sender.tab.id);
@@ -33,8 +41,9 @@ export async function automaticFill(message,sender) {
     const key=sender.documentId+':'+requestAt;
     const {automaticFills={}}=await chrome.storage.session.get('automaticFills');
     if(automaticFills[sender.tab.id]===key)return;
-    const probe=await chrome.scripting.executeScript({target:{tabId:active.id},func:fillLoginCode,args:[null,origin,{payments:rule.payments}]});
-    if(!probe[0]?.result?.ok)return;
+    const probe=await chrome.scripting.executeScript({target,func:fillLoginCode,args:[null,frameOrigin,{payments:rule.payments}]});
+    // Inside another site's frame, only a card payment check is filled. Login boxes in frames stay manual.
+    if(!probe[0]?.result?.ok||inFrame&&probe[0].result.payment!==true)return;
     const request=async(path,body,seconds=10)=>{
       const response=await fetch(connection.origin+path,{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+connection.token},body:JSON.stringify(body),credentials:'omit',redirect:'error',cache:'no-store',signal:AbortSignal.timeout(seconds*1000)});
       if(!response.ok)throw Error('unavailable');return response.json();
@@ -47,6 +56,7 @@ export async function automaticFill(message,sender) {
     const current=await store.get(['connection','autoFillSites','autoFillEverywhere','paymentAutomation']);
     if(current.connection?.token!==connection.token||current.connection?.origin!==connection.origin||JSON.stringify(automaticRule(origin,current))!==JSON.stringify(rule))return;
     const claim=await request('/v1/claim',{id:item.id,service:rule.service});
+    if(item.twin){const twin=await request('/v1/claim',{id:item.twin,service:rule.service});if(twin.code!==claim.code)return;}
     if(claim.secret_type!=='code'||claim.account!==item.account||!Number.isFinite(Date.parse(claim.expires_at))||Date.parse(claim.expires_at)<=Date.now()||typeof claim.code!=='string')return;
     const [selected]=await chrome.tabs.query({active:true,lastFocusedWindow:true});
     if(selected?.id!==active.id||new URL(selected.url).origin!==origin)return;
@@ -54,7 +64,7 @@ export async function automaticFill(message,sender) {
     if(latest.connection?.token!==connection.token||latest.connection?.origin!==connection.origin||JSON.stringify(automaticRule(origin,latest))!==JSON.stringify(rule))return;
     if(rule.automatic&&!await chrome.permissions.contains({origins:['https://*/*']}))return;
     // Bind the write to the exact document that requested it, not a tab that has navigated.
-    const result=await chrome.scripting.executeScript({target:{tabId:active.id,documentIds:[sender.documentId]},func:fillLoginCode,args:[claim.code,origin,{payments:rule.payments,expectedPayment:probe[0].result.payment===true,submit:settings.autoSubmitLogin!==false}]});
+    const result=await chrome.scripting.executeScript({target,func:fillLoginCode,args:[claim.code,frameOrigin,{payments:rule.payments,expectedPayment:probe[0].result.payment===true,submit:settings.autoSubmitLogin!==false}]});
     if(!result[0]?.result?.ok)return;
     const pressed=result[0].result.submit;
     automaticFills[active.id]=key;
@@ -64,7 +74,7 @@ export async function automaticFill(message,sender) {
     await store.set({savings:total});
     const host=new URL(origin).hostname.replace(/^www\./,'');
     const title=probe[0].result.payment?'Payment code filled':pressed?'Code filled · '+pressed+' pressed':'Code filled';
-    try{await chrome.scripting.executeScript({target:{tabId:active.id,documentIds:[sender.documentId]},func:showSavedToast,args:[title,'OTP Bridge saved you ~'+SECONDS_SAVED_PER_CODE+'s on '+host,formatSaved(total.seconds)+' saved across '+total.fills+' code'+(total.fills===1?'':'s'),settings.fillSound!==false]});}catch{}
+    try{await chrome.scripting.executeScript({target:{tabId:active.id},func:showSavedToast,args:[title,'OTP Bridge saved you ~'+SECONDS_SAVED_PER_CODE+'s on '+host,formatSaved(total.seconds)+' saved across '+total.fills+' code'+(total.fills===1?'':'s'),settings.fillSound!==false]});}catch{}
   } catch {
     await chrome.storage.session.set({automaticFillStatus:{origin,status:'manual',at:new Date().toISOString()}});
   } finally {running.delete(sender.tab.id);}
@@ -76,11 +86,11 @@ export async function registerAutomaticSites() {
   if(own.length)await chrome.scripting.unregisterContentScripts({ids:own.map(script=>script.id)});
   if(!connection)return;
   if(autoFillEverywhere && await chrome.permissions.contains({origins:['https://*/*']})){
-    await chrome.scripting.registerContentScripts([{id:'otp-auto-all',matches:['https://*/*'],js:['automatic-page.js'],runAt:'document_start',persistAcrossSessions:true}]);return;
+    await chrome.scripting.registerContentScripts([{id:'otp-auto-all',matches:['https://*/*'],js:['automatic-page.js'],allFrames:true,runAt:'document_start',persistAcrossSessions:true}]);return;
   }
   const origins=[];
   for(const origin of Object.keys(autoFillSites).filter(origin=>autoFillSites[origin]))if(await chrome.permissions.contains({origins:[origin+'/*']}))origins.push(origin);
-  if(origins.length)await chrome.scripting.registerContentScripts(origins.map((origin,index)=>({id:'otp-auto-'+index,matches:[origin+'/*'],js:['automatic-page.js'],runAt:'document_start',persistAcrossSessions:true})));
+  if(origins.length)await chrome.scripting.registerContentScripts(origins.map((origin,index)=>({id:'otp-auto-'+index,matches:[origin+'/*'],js:['automatic-page.js'],allFrames:true,runAt:'document_start',persistAcrossSessions:true})));
 }
 
 export function formatSaved(seconds) {

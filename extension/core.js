@@ -22,10 +22,13 @@ export function fillLoginCode(code, expectedOrigin, automatic = false) {
   if (location.origin !== expectedOrigin) return {ok:false,reason:'The page changed. Start this login again.'};
   if (code !== null && (typeof code !== 'string' || !/^[A-Z0-9-]{4,19}$/i.test(code))) return {ok:false,reason:'Unsupported code format. Use Copy code.'};
   const paymentMode=automatic?.payments;
+  // Card checks (3-D Secure) say "You are paying WISPR the amount of ...", so "paying" counts too.
+  const paymentWords=/payment|paying|transaction|merchant|purchase|withdraw|bank transfer/i;
   let context=document.body.innerText;
-  let payment=/payment|transaction|merchant|purchase|withdraw|bank transfer/i.test(context);
+  let payment=paymentWords.test(context);
   const visible = input => !input.disabled && !input.readOnly && ['text','tel','number',...(paymentMode&&payment?['password']:[])].includes(input.type) && input.getClientRects().length && getComputedStyle(input).visibility !== 'hidden';
-  const marked = input => input.autocomplete === 'one-time-code' || /otp|one.?time|verification|security.?code|passcode|\bcode\b/i.test([input.name,input.id,input.placeholder,input.getAttribute('aria-label')].join(' '));
+  // Card issuers call the code a "One-Time Password", and the box just says "Please enter password".
+  const marked = input => input.autocomplete === 'one-time-code' || new RegExp('otp|one.?time|verification|security.?code|passcode|\\bcode\\b'+(paymentMode&&payment&&/one.?time password/i.test(context)?'|password':''),'i').test([input.name,input.id,input.placeholder,input.getAttribute('aria-label')].join(' '));
   const inputs = [...document.querySelectorAll('input')].filter(visible);
   const active = document.activeElement;
   const singles = inputs.filter(i => i.maxLength !== 1 && marked(i));
@@ -40,8 +43,8 @@ export function fillLoginCode(code, expectedOrigin, automatic = false) {
   const challenge=/log[ -]?in|sign[ -]?in|otp verification|authenticate|(?:otp|\bcode\b)[\s\S]{0,80}\bsent\b|\benter\b[^\n]{0,80}\b(?:otp|(?:\d[ -]?digit |verification |security )?code)\b/i;
   const loginPage=/log[ -]?in|sign[ -]?in/i.test(document.title)||/(?:^|\/)(?:auth|login|signin)(?:\/|$)/i.test(location.pathname);
   const formContext=(loginPage?targets[0].closest('[role="dialog"],dialog'):null)?.innerText||targets[0].form?.innerText||'';
-  if(challenge.test(formContext)||/payment|transaction|merchant|purchase|withdraw|bank transfer/i.test(formContext))context=formContext;
-  payment=/payment|transaction|merchant|purchase|withdraw|bank transfer/i.test(context);
+  if(challenge.test(formContext)||paymentWords.test(formContext))context=formContext;
+  payment=paymentWords.test(context);
   if(automatic&&automatic.expectedPayment!==undefined&&automatic.expectedPayment!==payment)return {ok:false,reason:'The verification context changed.'};
   if (code === null || automatic) {
     if (/reset.*password|password.*reset|recover.*account|withdraw|bank transfer/i.test(context) || (payment ? !paymentMode : !challenge.test(context))) return {ok:false,reason:'Use manual fill for this verification.'};
@@ -59,9 +62,12 @@ export function fillLoginCode(code, expectedOrigin, automatic = false) {
   const label=button=>(button.innerText||button.value||button.getAttribute('aria-label')||'').trim().replace(/\s+/g,' ');
   let submitButton;
   if(automatic&&payment&&paymentMode==='submit'){
-    const form=targets[0].form;
-    if(!form||!targets.every(input=>input.form===form))return {ok:false,reason:'Payment form is unclear.'};
-    const buttons=[...form.querySelectorAll('button,input[type="submit"]')].filter(button=>usable(button)&&/^(submit|verify|confirm|pay(?: now)?)$/i.test(label(button)));
+    // Exactly one clear go-ahead button in the code's form (or the bank's own page, which often has no form).
+    // It may still be greyed out: most banks turn Continue on only once the code is typed.
+    const form=targets[0].form,scope=form||targets[0].closest('dialog,[role="dialog"],[aria-modal="true"]')||document;
+    if(form&&!targets.every(input=>input.form===form))return {ok:false,reason:'Payment form is unclear.'};
+    const shown=button=>button.getClientRects().length&&getComputedStyle(button).visibility!=='hidden';
+    const buttons=[...scope.querySelectorAll('button,input[type="submit"]')].filter(button=>shown(button)&&/^(submit|verify|confirm|continue|proceed|pay(?: now)?)$/i.test(label(button)));
     if(buttons.length!==1)return {ok:false,reason:'Payment confirmation button is unclear.'};
     submitButton=buttons[0];
   }
@@ -71,7 +77,15 @@ export function fillLoginCode(code, expectedOrigin, automatic = false) {
     input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));
   });
   targets.at(-1).focus();
-  if(payment&&submitButton?.isConnected&&!submitButton.disabled)submitButton.click();
+  if(payment&&submitButton){
+    const page=location.href,started=Date.now();
+    const press=()=>{
+      if(location.href!==page||!submitButton.isConnected||!targets.every(input=>input.isConnected&&input.value))return;
+      if(usable(submitButton))return submitButton.click();
+      if(Date.now()-started<2000)setTimeout(press,150);
+    };
+    if(usable(submitButton))submitButton.click();else setTimeout(press,150);
+  }
   let pressing=null;
   if(automatic?.submit&&!payment){
     // Works the same on any site. Read the page top to bottom, like a person:

@@ -87,6 +87,19 @@ if __name__=='__main__':
       }
       // Pressing the code's own button, on any site: the first go-ahead button after the code box, decided after the fill.
       const mark=what=>"document.body.dataset."+what+"=String(Number(document.body.dataset."+what+"||0)+1)";
+      // Amex SafeKey card check, copied from the real screen: "One-Time Password", a box that says "Please enter password",
+      // a Pay with Points tick box, and Continue that stays grey until the code is typed. No <form>.
+      for(const type of ['text','password']){
+        const safekey='<title>SafeKey</title><p>We have sent a One-Time Password to ******1234 and o*****@example.test for Card number ending with 1009.</p><p>You are paying WISPR the amount of Rs 3840.00.</p><input type="'+type+'" placeholder="Please enter password" oninput="document.getElementById(\\'go\\').disabled=!this.value"><label><input type="checkbox" id="points" onclick="'+"document.body.dataset.points='yes'"+'"> Use Pay with Points</label><button id="go" type="button" disabled onclick="'+mark('confirmed')+'">Continue</button><button type="button" onclick="'+mark('cancelled')+'">Cancel</button><p>Didn\\'t receive code? <a href="#" onclick="'+mark('resent')+'">Resend password</a></p>';
+        await page.setContent(safekey);
+        const off=await page.evaluate(({source})=>(0,eval)('('+source+')')(null,location.origin,{payments:null}),{source:fill.toString()});
+        const probe=await page.evaluate(({source})=>(0,eval)('('+source+')')(null,location.origin,{payments:'submit'}),{source:fill.toString()});
+        const result=await page.evaluate(({source})=>(0,eval)('('+source+')')('246810',location.origin,{payments:'submit',expectedPayment:true,submit:true}),{source:fill.toString()});
+        await page.waitForTimeout(600);
+        const state=await page.evaluate(()=>({value:document.querySelector('input:not([type=checkbox])').value,confirmed:document.body.dataset.confirmed||'0',cancelled:document.body.dataset.cancelled||'0',resent:document.body.dataset.resent||'0',points:document.body.dataset.points||'no'}));
+        if(off.ok||!probe.ok||probe.payment!==true||!result.ok||state.value!=='246810'||state.confirmed!=='1'||state.cancelled!=='0'||state.resent!=='0'||state.points!=='no')throw Error('SafeKey regression ('+type+'): '+JSON.stringify({off,probe,result,state}));
+        results.push({name:'Amex SafeKey '+type+' box filled, Continue pressed once',passed:true});
+      }
       for(const [name,html,confirmed] of [
         ['login button behind an OTP popup is never pressed','<title>Email Login</title><form><label>Registered Email Address<input type="email" value="owner@example.test"></label><label>Password<input type="password" value="synthetic"></label><button type="button" onclick="'+mark('resent')+'">Login</button></form><div role="dialog"><h2>Authenticate</h2><p>Enter the 6-digit OTP sent to your phone number and email</p><input placeholder="Enter OTP" oninput="document.getElementById(\\'go\\').disabled=this.value.length!==6"><a href="#">Resend OTP</a><button id="go" type="button" disabled onclick="'+mark('confirmed')+'">Confirm</button></div>',true],
         ['code box then Verify','<title>Login</title><p>Enter the 6-digit code sent to your phone</p><input autocomplete="one-time-code"><button type="button" onclick="'+mark('confirmed')+'">Verify</button>',true],
@@ -114,6 +127,6 @@ if __name__=='__main__':
         # CLI prints source as well. Retain the result only, which contains no secrets.
         output=result.stdout.split('### Result\n',1)[-1].split('### Ran Playwright code',1)[0].strip()
         parsed=json.loads(output)
-        if len(parsed.get('results',[])) != len(cases)+23 or not all(result.get('passed') for result in parsed['results']):raise RuntimeError('Browser regressions failed')
+        if len(parsed.get('results',[])) != len(cases)+25 or not all(result.get('passed') for result in parsed['results']):raise RuntimeError('Browser regressions failed')
         print(output)
     finally:subprocess.run(cli+['close'],cwd=ROOT,capture_output=True)
