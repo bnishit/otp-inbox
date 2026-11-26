@@ -13,12 +13,12 @@ test('automatic fill needs one fresh code; review-only, duplicate, expired and w
 });
 function fixture(options:any={}) {
  const state:any={connection:{origin:'https://bridge.example.test',token:'synthetic-browser-reader'},autoFillSites:{'https://blinkit.com':rule}},session:any={},calls:any[]=[];
- const sender:any={id:'extension',frameId:0,documentId:'document-one',url:'https://blinkit.com/',tab:{id:1},...options.sender};
+ const sender:any={id:'extension',frameId:0,documentId:'document-one',url:'https://blinkit.com/',tab:{id:1,url:'https://blinkit.com/'},...options.sender};
  Object.assign(state,options.settings||{});
  let active:any={id:1,url:'https://blinkit.com/'};
  const chrome:any={permissions:{contains:async(value:any)=>value.origins?options.sitePermission!==false:options.alerts!==false},notifications:{create:async(id:any,value:any)=>{if(options.notificationFailure)throw Error('unavailable');calls.push(['notification',value]);}},runtime:{id:'extension'},tabs:{query:async()=>[active]},storage:{session:{get:async()=>session,set:async(v:any)=>Object.assign(session,v)}},scripting:{executeScript:async(value:any)=>{calls.push(['script',value.args,value.target]);return [{result:{ok:options.fields!==false,payment:options.payment===true,channel:options.channel}}];}}};
  const store={get:async()=>state};
- const fetcher=async(url:string,init:any)=>{calls.push(['fetch',url,JSON.parse(init.body)]);if(url.endsWith('/v1/claim')){if(options.navigate)active={id:1,url:'https://other.example.test/'};if(options.disconnect)delete state.connection;return Response.json({...item(),code:'1357',...options.claim});}return Response.json({items:options.items||[item()]});};
+ const fetcher=async(url:string,init:any)=>{calls.push(['fetch',url,JSON.parse(init.body)]);if(url.endsWith('/v1/claim')){if(options.navigate)active={id:1,url:'https://other.example.test/'};if(options.disconnect)delete state.connection;const body=JSON.parse(init.body);return Response.json({...(options.items||[item()]).find((i:any)=>i.id===body.id),code:options.codes?.[body.id]??'1357',...options.claim});}return Response.json({items:options.items||[item()]});};
  const source=readFileSync(new URL('./auto-fill.js',import.meta.url),'utf8').replace(/^import .*;\n/gm,'').replaceAll('export ','');
  const fn=new Function('chrome','fetch','connectionStore','bridgeOrigin','fillLoginCode','automaticRule','parse',source+'\nreturn automaticFill;')(chrome,fetcher,async()=>({...store,set:async(v:any)=>Object.assign(state,v)}),bridgeOrigin,fillLoginCode,automaticRule,parse);
  return {state,session,calls,run:()=>fn({requestAt:since},sender)};
@@ -87,7 +87,29 @@ test('saved payment automation accepts one issuer-matched payment code and reche
  const global=automaticRule('https://blinkit.com',{autoFillEverywhere:true});
  expect(automaticCandidate([paymentItem],{...global,payment:true},since)).toBeNull();
  expect(automaticCandidate([paymentItem],{...global,payment:true,payments:'submit'},since)?.id).toBe('sms');
- expect(automaticCandidate([{...paymentItem,preview:'Other issuer payment code'}],{...global,payment:true,payments:'submit'},since)).toBeNull();
+ // Bank texts hide the merchant in the preview; the bridge already matched it in the full message and checks again on claim.
+ expect(automaticCandidate([{...paymentItem,preview:'verification code to authorize a purchase at [redacted]'}],{...global,payment:true,payments:'submit'},since)?.id).toBe('sms');
+ expect(f.calls.find(c=>c[0]==='fetch'&&c[1].endsWith('/v1/claim'))[2].service).toBe('blinkit');
+});
+
+test('Amex SafeKey: the code box in the bank frame gets the code the bank sent by both SMS and email',async()=>{
+ const sms={...item('sms'),preview:'verification code to authorize a purchase of INR [redacted] at [redacted]'};
+ const mail={...sms,id:'mail',channel:'email',account:'owner@example.test'};
+ const card={settings:{autoFillEverywhere:true,autoFillSites:{},paymentAutomation:'submit'},payment:true,items:[sms,mail],sender:{frameId:3,documentId:'bank-frame',url:'https://acs.bank.example.test/challenge'}};
+ const f=fixture(card);await f.run();
+ expect(f.calls.find(c=>c[0]==='fetch')[2].service).toBe('blinkit');
+ expect(f.calls.filter(c=>c[0]==='fetch'&&c[1].endsWith('/v1/claim')).map(c=>c[2].id)).toEqual(['sms','mail']);
+ const write=f.calls.filter(c=>c[0]==='script')[1];
+ expect(write[2]).toEqual({tabId:1,documentIds:['bank-frame']});expect(write[1][1]).toBe('https://acs.bank.example.test');
+ expect(f.session.automaticFillStatus.status).toBe('filled');
+ // Different codes in the two messages: nothing is guessed.
+ const differ=fixture({...card,codes:{mail:'2468'}});await differ.run();
+ expect(differ.calls.filter(c=>c[0]==='script')).toHaveLength(1);
+ // A login box (not a card check) inside someone else's frame stays manual.
+ const login=fixture({...card,payment:false});await login.run();
+ expect(login.calls.filter(c=>c[0]==='fetch')).toHaveLength(0);
+ // Payment mode left on "Keep manual": nothing is claimed.
+ expect(automaticCandidate([sms,mail],{...automaticRule('https://blinkit.com',{autoFillEverywhere:true}),payment:true},since)).toBeNull();
 });
 
 test('a box that asks for the phone code gets the SMS, even when an email code arrived first',async()=>{
