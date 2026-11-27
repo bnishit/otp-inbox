@@ -74,7 +74,8 @@ async function render() {
   }
 }
 
-async function refresh(){if(!connection)return;try{await chrome.runtime.sendMessage({type:'refresh-inbox'});}catch{}await render();}
+// Always draw: without a connection, render shows the Connect form.
+async function refresh(){if(connection)try{await chrome.runtime.sendMessage({type:'refresh-inbox'});}catch{}await render();}
 
 $('connect-form').onsubmit=async event=>{
   event.preventDefault();
